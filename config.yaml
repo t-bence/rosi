@@ -1,0 +1,45 @@
+# ROSI configuration
+# Run with: uv run main.py
+
+# ── Signal ────────────────────────────────────────────────────────────────────
+sample_rate:    22050    # Hz
+duration:       2.0      # seconds
+speed_of_sound: 343.0    # m/s
+rpm:            600      # rotor speed [rev/min]
+
+# ── Microphone array ──────────────────────────────────────────────────────────
+# Path to a CSV file with columns:  x, y, z  (metres)
+# An optional header row is allowed; lines starting with # are ignored.
+# See mics.csv for the default 16-mic circular ring example.
+mic_positions_csv: mics.csv
+
+# ── Scan grid (in the rotating frame) ─────────────────────────────────────────
+scan_grid:
+  r_max:   0.80   # outer radius of the scan area [m]
+  n_r:     20     # number of radial steps
+  n_theta: 36     # number of angular steps (360°/n_theta resolution)
+
+# ── Beamforming ───────────────────────────────────────────────────────────────
+fft_size: 512   # Welch block length (applied to de-rotated DAS signal)
+overlap:  0.5   # Welch block overlap fraction (0–1)
+f_min:    2000  # lower edge of the frequency band to compute [Hz]
+f_max:    4000  # upper edge of the frequency band to compute [Hz]
+
+# ── Sources (simulation only) ─────────────────────────────────────────────────
+# Each source is a tonal point source rotating with the rotor.
+#   R         radius from the rotation axis [m]
+#   phi0      initial angular position [radians]  (0 = positive x-axis)
+#   freq      tone frequency [Hz]
+#   amplitude source strength (arbitrary units)
+#   phase     initial phase [radians]
+sources:
+  - R: 0.50
+    phi0: 0.0
+    freq: 3000
+    amplitude: 1.0
+    phase: 0.0
+  - R: 0.30
+    phi0: 2.094   # ≈ 2π/3 = 120°
+    freq: 3300
+    amplitude: 0.7
+    phase: 0.785  # ≈ π/4
