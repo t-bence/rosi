@@ -197,7 +197,7 @@ def main_with_args(args):
     n_scan_tgt = 161 * 161
     cost_ratio = (n_emit_tgt / n_emit_now) * (n_scan_tgt / len(scan_grid))
     t_tgt = elapsed * cost_ratio
-    print(f"\n  Extrapolation to 161×161 grid, 30 s @ 44100 Hz:")
+    print("\n  Extrapolation to 161×161 grid, 30 s @ 44100 Hz:")
     print(f"    Estimated time: {t_tgt:,.0f} s = {t_tgt/3600:.1f} h")
 
     # ── Plot ───────────────────────────────────────────────────────────────

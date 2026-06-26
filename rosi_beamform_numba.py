@@ -162,7 +162,7 @@ def rosi_beamform_freq_numba(
         mem_mb = chunk_size * n_emit * 8 / 1e6
         print(f"  Numba JIT  |  scan: {n_scan}  |  N_emit: {n_emit:,}  |  "
               f"blocks/pt: {len(starts)}  |  chunk: {chunk_size} ({mem_mb:.0f} MB DAS buf)")
-        print(f"  (first call triggers JIT compilation, cached to disk afterwards)")
+        print("  (first call triggers JIT compilation, cached to disk afterwards)")
 
     signals_c = np.ascontiguousarray(signals, dtype=np.float64)
     t_emit_c  = np.ascontiguousarray(t_emit,  dtype=np.float64)

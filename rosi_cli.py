@@ -33,7 +33,7 @@ def cmd_validate(args):
     
     # Try to load and validate config
     try:
-        config = load_config_from_yaml(config_path)
+        load_config_from_yaml(config_path)
         print("✓ Config is valid")
     except FileNotFoundError as e:
         print(f"ERROR: {e}")
@@ -50,9 +50,12 @@ def cmd_validate(args):
     
     # Check Numba availability
     try:
-        import numba
-        print("✓ Numba available (will use fast JIT backend)")
-    except ImportError:
+        import importlib.util
+        if importlib.util.find_spec("numba") is not None:
+            print("✓ Numba available (will use fast JIT backend)")
+        else:
+            print("⚠ Numba not available (will use slower numpy+joblib backend)")
+    except Exception:
         print("⚠ Numba not available (will use slower numpy+joblib backend)")
     
     return 0
