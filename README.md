@@ -104,3 +104,7 @@ rosi_beamform_numba.py    — same algorithm, Numba JIT (faster)
 > Sijtsma, P. (2001). *Experimental Techniques for Identification and Characterisation of Noise Sources.* NLR Technical Publication NLR-TP-2001-170. National Aerospace Laboratory NLR.
 
 The forward-propagation (emission-time) formulation used here follows the same principle: for each scan point co-rotating with the rotor, compute the arrival time at each microphone, interpolate the recorded signal, and accumulate the delay-and-sum output. Taking the Welch-averaged power spectrum of this de-rotated signal gives the source power at each frequency without Doppler smearing at any rotor speed.
+
+## Timing
+
+It seems that 1 s of signal takes around 80 s, 10 s of signal takes 800 s to simulate with parameters comparable to my measurements.

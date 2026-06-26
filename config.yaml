@@ -2,10 +2,10 @@
 # Run with: uv run main.py
 
 # ── Signal ────────────────────────────────────────────────────────────────────
-sample_rate:    22050    # Hz
-duration:       2.0      # seconds
+sample_rate:    44100    # Hz
+duration:       10.0      # seconds
 speed_of_sound: 343.0    # m/s
-rpm:            600      # rotor speed [rev/min]
+rpm:            25      # rotor speed [rev/min]
 
 # ── Microphone array ──────────────────────────────────────────────────────────
 # Path to a CSV file with columns:  x, y, z  (metres)
@@ -16,14 +16,14 @@ mic_positions_csv: mics.csv
 # ── Scan grid (in the rotating frame) ─────────────────────────────────────────
 scan_grid:
   r_max:   0.80   # outer radius of the scan area [m]
-  n_r:     20     # number of radial steps
-  n_theta: 36     # number of angular steps (360°/n_theta resolution)
+  n_r:     161     # number of radial steps
+  n_theta: 161     # number of angular steps (360°/n_theta resolution)
 
 # ── Beamforming ───────────────────────────────────────────────────────────────
-fft_size: 512   # Welch block length (applied to de-rotated DAS signal)
+fft_size: 1024   # Welch block length (applied to de-rotated DAS signal)
 overlap:  0.5   # Welch block overlap fraction (0–1)
 f_min:    2000  # lower edge of the frequency band to compute [Hz]
-f_max:    4000  # upper edge of the frequency band to compute [Hz]
+f_max:    8000  # upper edge of the frequency band to compute [Hz]
 
 # ── Sources (simulation only) ─────────────────────────────────────────────────
 # Each source is a tonal point source rotating with the rotor.
