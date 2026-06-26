@@ -77,6 +77,14 @@ x,y,z
 
 Replace `mics.csv` with your own array layout, or point `mic_positions_csv` at a different file.
 
+## Generate a microphone array
+
+You can add a custom array to `mics.csv` as described above. You can also generate a uniform circular array by running the following:
+
+`uv run utils/generate_array.py -N 24 -R 1 -Z 1.5`
+
+This will create an array with 24 microphones (`N`) at 1 meter radius `R`, at 1.5 m distance from the source plane (`Z`).
+
 ## Performance
 
 For a realistic case (161×161 scan grid, 30 s signal at 44100 Hz), the script automatically uses Numba's JIT compiler if available, giving a ~7× speedup over the pure-numpy fallback:
@@ -87,6 +95,9 @@ For a realistic case (161×161 scan grid, 30 s signal at 44100 Hz), the script a
 | Numba JIT | ~0.4 s | ~0.1 h |
 
 Numba is included in the default dependencies, so you get the fast path automatically. The first run compiles the kernel (~2 s extra); every subsequent run uses the cached result.
+
+It seems that 1 s of signal takes around 80 s, 10 s of signal takes 800 s to simulate with parameters comparable to my measurements on a MacBook Pro with M2 Pro and 16 GB memory.
+
 
 ## Files
 
@@ -105,6 +116,3 @@ rosi_beamform_numba.py    — same algorithm, Numba JIT (faster)
 
 The forward-propagation (emission-time) formulation used here follows the same principle: for each scan point co-rotating with the rotor, compute the arrival time at each microphone, interpolate the recorded signal, and accumulate the delay-and-sum output. Taking the Welch-averaged power spectrum of this de-rotated signal gives the source power at each frequency without Doppler smearing at any rotor speed.
 
-## Timing
-
-It seems that 1 s of signal takes around 80 s, 10 s of signal takes 800 s to simulate with parameters comparable to my measurements.
