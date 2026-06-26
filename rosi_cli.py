@@ -109,8 +109,8 @@ def main():
         help="Validate config and check dependencies"
     )
     val.add_argument(
-        "--config", type=str, default="config.yaml",
-        help="Path to config file (default: config.yaml)"
+        "--config", type=str, default="data/input/config.yaml",
+        help="Path to config file (default: data/input/config.yaml)"
     )
     val.set_defaults(func=cmd_validate)
     
@@ -120,12 +120,12 @@ def main():
         help="Run ROSI simulation and beamforming"
     )
     run.add_argument(
-        "--config", type=str, default="config.yaml",
-        help="Path to config file (default: config.yaml)"
+        "--config", type=str, default="data/input/config.yaml",
+        help="Path to config file (default: data/input/config.yaml)"
     )
     run.add_argument(
         "--output", type=str, default=None,
-        help="Output image filename (overrides config.yaml)"
+        help="Output image filename (default: data/output/rosi_result.png)"
     )
     run.add_argument(
         "--dry-run", action="store_true",

@@ -32,7 +32,7 @@ That's it. On first run uv will download Python and install packages if needed. 
 
 ## Output
 
-The script produces `rosi_result.png` with three panels:
+The script produces output in `data/output/rosi_result.png` with three panels:
 
 | Panel | What it shows |
 |---|---|
@@ -42,7 +42,7 @@ The script produces `rosi_result.png` with three panels:
 
 ## Configuration
 
-All settings live in `config.yaml` — no need to touch any Python code.
+All settings live in `data/input/config.yaml` — no need to touch any Python code.
 
 ```yaml
 sample_rate:    22050    # Hz
@@ -50,7 +50,7 @@ duration:       2.0      # seconds
 speed_of_sound: 343.0    # m/s
 rpm:            600      # rotor speed [rev/min]
 
-mic_positions_csv: mics.csv   # CSV with x,y,z columns (metres)
+mic_positions_csv: data/input/mics.csv   # CSV with x,y,z columns (metres)
 
 scan_grid:
   r_max:   0.80   # outer radius of the scan area [m]
@@ -62,6 +62,8 @@ overlap:  0.5     # Welch overlap fraction (0–1)
 f_min:    2000    # frequency band to compute [Hz]
 f_max:    4000
 
+output_image: data/output/rosi_result.png  # output PNG path
+
 sources:          # simulated rotating tonal sources
   - R: 0.50  phi0: 0.0     freq: 3000  amplitude: 1.0
   - R: 0.30  phi0: 2.094   freq: 3300  amplitude: 0.7
@@ -69,7 +71,7 @@ sources:          # simulated rotating tonal sources
 
 ### Microphone positions
 
-`mics.csv` is a plain CSV file with one mic per row and columns `x, y, z` (metres).
+`data/input/mics.csv` is a plain CSV file with one mic per row and columns `x, y, z` (metres).
 An optional header row is allowed; lines starting with `#` are ignored.
 
 ```
@@ -79,7 +81,7 @@ x,y,z
 ...
 ```
 
-Replace `mics.csv` with your own array layout, or point `mic_positions_csv` at a different file.
+Replace with your own array layout, or point `mic_positions_csv` to a different file in `data/input/`.
 
 ## Command-line interface
 
@@ -123,10 +125,10 @@ Skip matplotlib and save directly to file:
 
 ## Generate a microphone array
 
-Generate a uniform circular microphone array:
+Generate a uniform circular microphone array into `data/input/`:
 
 ```bash
-./rosi generate-array -N 24 -R 1.5 -Z 2.0
+./rosi generate-array -N 24 -R 1.5 -Z 2.0 -o data/input/mics.csv
 ```
 
 This creates an array with 24 microphones (`-N`) at 1.5 meter radius (`-R`), at 2.0 m height (`-Z`).
@@ -134,11 +136,11 @@ This creates an array with 24 microphones (`-N`) at 1.5 meter radius (`-R`), at 
 The command will **prompt before overwriting** the output file for safety. Use `-f` / `--force` to skip the prompt:
 
 ```bash
-./rosi generate-array -N 32 -R 2.0 -Z 1.5 -o my_array.csv      # Creates my_array.csv
-./rosi generate-array -N 32 -R 2.0 -Z 1.5 -o my_array.csv -f   # Force overwrite
+./rosi generate-array -N 32 -R 2.0 -Z 1.5 -o data/input/my_array.csv      # Creates custom array
+./rosi generate-array -N 32 -R 2.0 -Z 1.5 -o data/input/my_array.csv -f   # Force overwrite
 ```
 
-You can also manually edit `mics.csv` (a plain CSV with columns `x, y, z` in metres). An optional header row is allowed; lines starting with `#` are ignored.
+You can also manually edit CSV files in `data/input/` (plain CSV with columns `x, y, z` in metres).
 
 ## Performance
 
@@ -154,19 +156,33 @@ Numba is included in the default dependencies, so you get the fast path automati
 It seems that 1 s of signal takes around 80 s, 10 s of signal takes 800 s to simulate with parameters comparable to my measurements on a MacBook Pro with M2 Pro and 16 GB memory.
 
 
-## Files
+## Files and Directories
 
+**Project structure:**
 ```
-rosi                      — CLI entry point (run commands via this script)
-config.yaml               — all settings (edit this, not the Python files)
-mics.csv                  — microphone positions (x, y, z in metres)
-main.py                   — entry point and plots
-rosi_cli.py               — CLI command definitions
-rosi_sim.py               — simulate rotating sources → mic signals
-rosi_beamform.py          — frequency-domain ROSI beamformer (numpy + joblib)
-rosi_beamform_numba.py    — same algorithm, Numba JIT (faster)
-utils/generate_array.py   — generate circular microphone arrays
+rosi/                           — Project root
+├── Code
+│   ├── rosi                    — CLI entry point (run commands via this script)
+│   ├── config_schema.py        — Pydantic config validation models
+│   ├── main.py                 — Entry point and plots
+│   ├── rosi_cli.py             — CLI command definitions
+│   ├── rosi_sim.py             — Simulate rotating sources → mic signals
+│   ├── rosi_beamform.py        — Frequency-domain ROSI beamformer (numpy + joblib)
+│   ├── rosi_beamform_numba.py  — Same algorithm, Numba JIT (faster)
+│   └── utils/generate_array.py — Generate circular microphone arrays
+│
+└── Data
+    ├── data/input/
+    │   ├── config.yaml         — All settings (edit this)
+    │   └── mics.csv            — Microphone positions (x, y, z in metres)
+    │
+    └── data/output/
+        └── rosi_result.png     — Output beamforming results
 ```
+
+**Edit these to customize:**
+- `data/input/config.yaml` — Signal, scan grid, beamforming parameters
+- `data/input/mics.csv` — Microphone array layout
 
 ## Method reference
 

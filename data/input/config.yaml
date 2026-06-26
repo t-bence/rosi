@@ -10,8 +10,7 @@ rpm:            25      # rotor speed [rev/min]
 # ── Microphone array ──────────────────────────────────────────────────────────
 # Path to a CSV file with columns:  x, y, z  (metres)
 # An optional header row is allowed; lines starting with # are ignored.
-# See mics.csv for the default 16-mic circular ring example.
-mic_positions_csv: mics.csv
+mic_positions_csv: data/input/mics.csv
 
 # ── Scan grid (in the rotating frame) ─────────────────────────────────────────
 scan_grid:
@@ -26,7 +25,7 @@ f_min:    2000  # lower edge of the frequency band to compute [Hz]
 f_max:    8000  # upper edge of the frequency band to compute [Hz]
 
 # ── Output ────────────────────────────────────────────────────────────────────
-output_image: rosi_result.png  # output PNG filename
+output_image: data/output/rosi_result.png  # output PNG filename
 
 # ── Sources (simulation only) ─────────────────────────────────────────────────
 # Each source is a tonal point source rotating with the rotor.

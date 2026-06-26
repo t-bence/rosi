@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Output data (results are generated, not committed)
+data/output/*.png
+data/output/*.csv
+
+# Numba cache
+*.nbc
+
