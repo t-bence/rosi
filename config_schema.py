@@ -28,9 +28,9 @@ class SourceConfig(BaseModel):
 class ROSIConfig(BaseModel):
     """Complete ROSI configuration."""
 
-    # Signal parameters
-    sample_rate: int = Field(gt=0, description="Sample rate [Hz]")
-    duration: float = Field(gt=0, description="Signal duration [seconds]")
+    # Signal parameters — required for simulation mode, derived from WAV in measurement mode
+    sample_rate: int | None = Field(default=None, gt=0, description="Sample rate [Hz]")
+    duration: float | None = Field(default=None, gt=0, description="Signal duration [seconds]")
     speed_of_sound: float = Field(gt=0, description="Speed of sound [m/s]")
     rpm: float = Field(ge=0, description="Rotor speed [rev/min]")
 
@@ -51,9 +51,12 @@ class ROSIConfig(BaseModel):
         default="rosi_result.png", description="Output PNG filename"
     )
 
-    # Sources (optional)
+    # Measurement mode: multi-channel WAV file replaces simulation
+    wav_file: str | None = Field(default=None, description="Path to multi-channel WAV file")
+
+    # Sources — required for simulation mode, unused in measurement mode
     sources: list[SourceConfig] = Field(
-        default_factory=list, description="Rotating sources"
+        default_factory=list, description="Rotating sources (simulation mode only)"
     )
 
     @field_validator("fft_size")
@@ -71,6 +74,32 @@ class ROSIConfig(BaseModel):
         """Validate f_max > f_min."""
         if self.f_max <= self.f_min:
             raise ValueError("f_max must be > f_min")
+        return self
+
+    @field_validator("wav_file", mode="before")
+    @classmethod
+    def wav_file_must_exist(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        path = Path(v)
+        if not path.exists():
+            raise ValueError(f"WAV file not found: {path}")
+        return v
+
+    @model_validator(mode="after")
+    def check_mode_completeness(self) -> "ROSIConfig":
+        if self.wav_file is not None:
+            # Measurement mode: sources must not be set
+            if self.sources:
+                raise ValueError("Cannot specify both wav_file and sources")
+        else:
+            # Simulation mode: sample_rate, duration, and sources are required
+            if self.sample_rate is None:
+                raise ValueError("sample_rate is required in simulation mode (no wav_file)")
+            if self.duration is None:
+                raise ValueError("duration is required in simulation mode (no wav_file)")
+            if not self.sources:
+                raise ValueError("At least one source is required in simulation mode (no wav_file)")
         return self
 
     @field_validator("mic_positions_csv", mode="before")

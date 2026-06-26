@@ -1,11 +1,19 @@
 # ROSI configuration
 # Run with: rosi run
 
+# ── Input mode ────────────────────────────────────────────────────────────────
+# Two mutually exclusive modes:
+#   Simulation:   set sample_rate, duration, and sources (wav_file must be absent/null)
+#   Measurement:  set wav_file pointing to a multi-channel WAV (sample_rate and
+#                 duration are derived from the file; sources must be absent/null)
+#
+# wav_file: data/input/measurement.wav   # uncomment to use measurement mode
+
 # ── Signal ────────────────────────────────────────────────────────────────────
-sample_rate:    44100    # Hz
-duration:       10.0      # seconds
+sample_rate:    44100    # Hz          (simulation mode only)
+duration:       10.0     # seconds     (simulation mode only)
 speed_of_sound: 343.0    # m/s
-rpm:            25      # rotor speed [rev/min]
+rpm:            25       # rotor speed [rev/min]
 
 # ── Microphone array ──────────────────────────────────────────────────────────
 # Path to a CSV file with columns:  x, y, z  (metres)
@@ -27,7 +35,7 @@ f_max:    8000  # upper edge of the frequency band to compute [Hz]
 # ── Output ────────────────────────────────────────────────────────────────────
 output_image: data/output/rosi_result.png  # output PNG filename
 
-# ── Sources (simulation only) ─────────────────────────────────────────────────
+# ── Sources (simulation mode only) ────────────────────────────────────────────
 # Each source is a tonal point source rotating with the rotor.
 #   R         radius from the rotation axis [m]
 #   phi0      initial angular position [radians]  (0 = positive x-axis)
