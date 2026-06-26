@@ -15,6 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from scipy.interpolate import griddata
+from scipy.io import savemat
 from pydantic import ValidationError
 
 from config_schema import load_config_from_yaml, merge_config_with_overrides, ROSIConfig
@@ -176,6 +177,18 @@ def main_with_args(args):
     )
     elapsed = time.time() - t0
     print(f"  Done in {elapsed:.2f} s")
+
+    # ── Save results ──────────────────────────────────────────────────────
+
+    mat_path = Path(OUTPUT_IMAGE).with_suffix(".mat")
+    savemat(str(mat_path), {
+        "freqs_csm":      freqs_csm,
+        "C_csm":          C_csm,
+        "freqs_beamform": freqs_out,
+        "power_map":      power_map,
+        "scan_grid":      scan_grid,
+    })
+    print(f"Saved results → {mat_path}")
 
     # ── Timing extrapolation ───────────────────────────────────────────────
 

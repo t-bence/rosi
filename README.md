@@ -32,13 +32,34 @@ That's it. On first run uv will download Python and install packages if needed. 
 
 ## Output
 
-The script produces output in `data/output/rosi_result.png` with three panels:
+Every run writes two files to `data/output/` (same stem, different extension):
+
+| File | Contents |
+|---|---|
+| `rosi_result.png` | Three-panel figure (see below) |
+| `rosi_result.mat` | Numeric results in MATLAB format (see below) |
+
+### Figure panels
 
 | Panel | What it shows |
 |---|---|
 | Raw CSM | The cross-spectral matrix from unprocessed mic signals — rotating sources appear smeared, which is *expected* |
 | ROSI map | Power in the rotating frame at the source frequency — peaks should align with the true source positions (cyan circles) |
 | DAS spectrum | Frequency spectrum at the peak scan point vs the quietest one — confirms which frequency is dominant |
+
+### MATLAB data file
+
+Load with `d = load('data/output/rosi_result.mat')`. Variables:
+
+| Variable | Shape | Description |
+|---|---|---|
+| `freqs_csm` | `(N_freq × 1)` | Frequency axis for `C_csm` — full spectrum, 0 to fs/2 [Hz] |
+| `C_csm` | `(N_freq × N_mics × N_mics)` | Global cross-spectral matrix, complex double |
+| `freqs_beamform` | `(N_f × 1)` | Frequency axis for `power_map` — band-limited to `[f_min, f_max]` [Hz] |
+| `power_map` | `(N_scan × N_f)` | Beamformer power at each scan point and frequency |
+| `scan_grid` | `(N_scan × 2)` | Scan point coordinates: column 1 = r [m], column 2 = θ [rad] |
+
+`freqs_csm` and `freqs_beamform` share the same bin spacing (`fs / fft_size`) but different coverage: `freqs_csm` spans the full FFT range while `freqs_beamform` is the subset inside your configured `[f_min, f_max]` band. Use `freqs_csm` to index into `C_csm` and `freqs_beamform` to index into `power_map`.
 
 ## Configuration
 
