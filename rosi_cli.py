@@ -26,56 +26,26 @@ def cmd_generate_array(args):
 
 def cmd_validate(args):
     """Handler for 'rosi validate' subcommand."""
-    import yaml
-    from pathlib import Path
+    from config_schema import load_config_from_yaml
+    from pydantic import ValidationError
     
-    config_path = Path(args.config)
+    config_path = args.config
     
-    # Check file exists
-    if not config_path.exists():
-        print(f"ERROR: Config file not found: {config_path}")
-        return 1
-    
-    # Load YAML
+    # Try to load and validate config
     try:
-        with open(config_path) as f:
-            config = yaml.safe_load(f)
+        config = load_config_from_yaml(config_path)
+        print("✓ Config is valid")
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}")
+        return 1
+    except ValidationError as e:
+        print("CONFIG VALIDATION FAILED:")
+        for error in e.errors():
+            loc = " → ".join(str(x) for x in error["loc"])
+            print(f"  {loc}: {error['msg']}")
+        return 1
     except Exception as e:
-        print(f"ERROR: Failed to parse {config_path}: {e}")
-        return 1
-    
-    if not config:
-        print(f"ERROR: Config file is empty: {config_path}")
-        return 1
-    
-    # Basic structure checks
-    errors = []
-    
-    # Check required top-level keys
-    required_keys = [
-        "sample_rate", "duration", "speed_of_sound", "rpm",
-        "mic_positions_csv", "scan_grid", "fft_size", "overlap",
-        "f_min", "f_max", "output_image"
-    ]
-    for key in required_keys:
-        if key not in config:
-            errors.append(f"Missing required key: {key}")
-    
-    # Check for unknown keys (strict)
-    allowed_keys = set(required_keys + ["sources"])
-    unknown = set(config.keys()) - allowed_keys
-    if unknown:
-        errors.append(f"Unknown keys in config: {', '.join(sorted(unknown))}")
-    
-    # Check mic CSV exists and is readable
-    mic_csv = Path(config.get("mic_positions_csv", ""))
-    if mic_csv and not mic_csv.exists():
-        errors.append(f"Mic CSV not found: {mic_csv}")
-    
-    if errors:
-        print("Config validation FAILED:")
-        for err in errors:
-            print(f"  - {err}")
+        print(f"ERROR: {e}")
         return 1
     
     # Check Numba availability
@@ -85,7 +55,6 @@ def cmd_validate(args):
     except ImportError:
         print("⚠ Numba not available (will use slower numpy+joblib backend)")
     
-    print("✓ Config is valid")
     return 0
 
 

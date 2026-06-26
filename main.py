@@ -13,10 +13,11 @@ import time
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-import yaml
 from pathlib import Path
 from scipy.interpolate import griddata
+from pydantic import ValidationError
 
+from config_schema import load_config_from_yaml, merge_config_with_overrides, ROSIConfig
 from rosi_sim import simulate_signals
 from rosi_beamform import make_scan_grid, compute_global_csm, power_map_to_grid
 
@@ -55,186 +56,38 @@ def load_mic_positions(csv_path: str | Path) -> np.ndarray:
     return arr
 
 
-def load_config(config_path: str | Path) -> dict:
-    """Load and parse config.yaml."""
-    with open(config_path) as f:
-        cfg = yaml.safe_load(f)
-    if not cfg:
-        raise ValueError(f"Config file is empty: {config_path}")
-    return cfg
-
-
-def validate_config(config: dict) -> list[str]:
+def load_and_validate_config(config_path: str, cli_args) -> ROSIConfig:
     """
-    Validate config structure and values.
-    Returns list of error messages (empty = valid).
+    Load config from YAML and merge with CLI overrides.
+    Raises ValidationError if config is invalid.
     """
-    errors = []
-
-    # Required top-level keys
-    required_keys = [
-        "sample_rate", "duration", "speed_of_sound", "rpm",
-        "mic_positions_csv", "scan_grid", "fft_size", "overlap",
-        "f_min", "f_max", "output_image"
-    ]
-    for key in required_keys:
-        if key not in config:
-            errors.append(f"Missing required key: {key}")
-
-    # Check for unknown keys (strict)
-    allowed_keys = set(required_keys + ["sources"])
-    unknown = set(config.keys()) - allowed_keys
-    if unknown:
-        errors.append(f"Unknown keys in config: {', '.join(sorted(unknown))}")
-
-    if errors:
-        return errors
-
-    # Type and range validation
-    try:
-        sr = int(config["sample_rate"])
-        if sr <= 0:
-            errors.append("sample_rate must be > 0")
-    except (TypeError, ValueError):
-        errors.append("sample_rate must be an integer")
-
-    try:
-        dur = float(config["duration"])
-        if dur <= 0:
-            errors.append("duration must be > 0")
-    except (TypeError, ValueError):
-        errors.append("duration must be a number")
-
-    try:
-        c = float(config["speed_of_sound"])
-        if c <= 0:
-            errors.append("speed_of_sound must be > 0")
-    except (TypeError, ValueError):
-        errors.append("speed_of_sound must be a number")
-
-    try:
-        rpm = float(config["rpm"])
-        if rpm < 0:
-            errors.append("rpm must be >= 0")
-    except (TypeError, ValueError):
-        errors.append("rpm must be a number")
-
-    # Mic CSV
-    try:
-        mic_csv = Path(config["mic_positions_csv"])
-        if not mic_csv.exists():
-            errors.append(f"mic_positions_csv not found: {mic_csv}")
-    except Exception as e:
-        errors.append(f"Error checking mic_positions_csv: {e}")
-
-    # Scan grid
-    try:
-        sg = config["scan_grid"]
-        r_max = float(sg["r_max"])
-        if r_max <= 0:
-            errors.append("scan_grid.r_max must be > 0")
-        n_r = int(sg["n_r"])
-        if n_r < 1:
-            errors.append("scan_grid.n_r must be >= 1")
-        n_theta = int(sg["n_theta"])
-        if n_theta < 1:
-            errors.append("scan_grid.n_theta must be >= 1")
-    except Exception as e:
-        errors.append(f"Invalid scan_grid: {e}")
-
-    # FFT size (should be power of 2)
-    try:
-        fft = int(config["fft_size"])
-        if fft < 64:
-            errors.append("fft_size must be >= 64")
-        if (fft & (fft - 1)) != 0:
-            errors.append("fft_size should be a power of 2")
-    except (TypeError, ValueError):
-        errors.append("fft_size must be an integer")
-
-    # Overlap
-    try:
-        ovlp = float(config["overlap"])
-        if not (0 <= ovlp < 1):
-            errors.append("overlap must be in [0, 1)")
-    except (TypeError, ValueError):
-        errors.append("overlap must be a number")
-
-    # Frequencies
-    try:
-        f_min = float(config["f_min"])
-        f_max = float(config["f_max"])
-        if f_min < 0:
-            errors.append("f_min must be >= 0")
-        if f_max <= f_min:
-            errors.append("f_max must be > f_min")
-    except (TypeError, ValueError):
-        errors.append("f_min and f_max must be numbers")
-
-    # Output image
-    try:
-        out_path = Path(config["output_image"])
-        # Check parent directory is writable
-        parent = out_path.parent if out_path.parent != Path() else Path(".")
-        if not parent.exists():
-            errors.append(f"Output directory does not exist: {parent}")
-    except Exception as e:
-        errors.append(f"Error checking output_image path: {e}")
-
-    return errors
-
-
-def merge_config_with_args(config: dict, args) -> dict:
-    """
-    Merge CLI arguments into config dict.
-    CLI args override YAML values.
-    """
-    # Sample rate
-    if args.sample_rate is not None:
-        config["sample_rate"] = args.sample_rate
-
-    # Duration
-    if args.duration is not None:
-        config["duration"] = args.duration
-
-    # Speed of sound
-    if args.speed_of_sound is not None:
-        config["speed_of_sound"] = args.speed_of_sound
-
-    # RPM
-    if args.rpm is not None:
-        config["rpm"] = args.rpm
-
-    # Mic CSV
-    if args.mic_positions_csv is not None:
-        config["mic_positions_csv"] = args.mic_positions_csv
-
-    # Scan grid
-    if args.r_max is not None:
-        config["scan_grid"]["r_max"] = args.r_max
-    if args.n_r is not None:
-        config["scan_grid"]["n_r"] = args.n_r
-    if args.n_theta is not None:
-        config["scan_grid"]["n_theta"] = args.n_theta
-
-    # FFT size
-    if args.fft_size is not None:
-        config["fft_size"] = args.fft_size
-
-    # Overlap
-    if args.overlap is not None:
-        config["overlap"] = args.overlap
-
-    # Frequencies
-    if args.f_min is not None:
-        config["f_min"] = args.f_min
-    if args.f_max is not None:
-        config["f_max"] = args.f_max
-
-    # Output image
-    if args.output is not None:
-        config["output_image"] = args.output
-
+    # Load YAML config
+    config = load_config_from_yaml(config_path)
+    
+    # Prepare CLI overrides
+    overrides = {
+        "sample_rate": cli_args.sample_rate,
+        "duration": cli_args.duration,
+        "speed_of_sound": cli_args.speed_of_sound,
+        "rpm": cli_args.rpm,
+        "mic_positions_csv": cli_args.mic_positions_csv,
+        "r_max": cli_args.r_max,
+        "n_r": cli_args.n_r,
+        "n_theta": cli_args.n_theta,
+        "fft_size": cli_args.fft_size,
+        "overlap": cli_args.overlap,
+        "f_min": cli_args.f_min,
+        "f_max": cli_args.f_max,
+        "output_image": cli_args.output,
+    }
+    
+    # Remove None values
+    overrides = {k: v for k, v in overrides.items() if v is not None}
+    
+    # Merge and re-validate
+    if overrides:
+        config = merge_config_with_overrides(config, overrides)
+    
     return config
 
 
@@ -244,62 +97,58 @@ def merge_config_with_args(config: dict, args) -> dict:
 def main_with_args(args):
     """Run ROSI with parsed CLI arguments."""
     
-    # Load config
-    config_path = Path(args.config)
+    # Load and validate config with Pydantic
     try:
-        config = load_config(config_path)
-    except Exception as e:
-        print(f"ERROR: Failed to load config: {e}")
+        config = load_and_validate_config(args.config, args)
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}")
         return 1
-
-    # Merge CLI args into config
-    config = merge_config_with_args(config, args)
-
-    # Validate config
-    errors = validate_config(config)
-    if errors:
+    except ValidationError as e:
         print("CONFIG VALIDATION FAILED:")
-        for err in errors:
-            print(f"  - {err}")
+        for error in e.errors():
+            loc = " → ".join(str(x) for x in error["loc"])
+            print(f"  {loc}: {error['msg']}")
+        return 1
+    except Exception as e:
+        print(f"ERROR: {e}")
         return 1
 
     # Print config if --dry-run
     if args.dry_run:
         print("Merged configuration:")
-        print(yaml.dump(config, default_flow_style=False))
+        print(config.model_dump_json(indent=2))
         print("\nDry run complete. To execute, remove --dry-run flag.")
         return 0
 
     # Extract config values
-    FS = int(config["sample_rate"])
-    T_TOTAL = float(config["duration"])
-    C = float(config["speed_of_sound"])
-    OMEGA = 2 * np.pi * float(config["rpm"]) / 60
+    FS = int(config.sample_rate)
+    T_TOTAL = float(config.duration)
+    C = float(config.speed_of_sound)
+    OMEGA = 2 * np.pi * float(config.rpm) / 60
 
-    mic_csv = Path(config["mic_positions_csv"])
+    mic_csv = Path(config.mic_positions_csv)
     mic_positions = load_mic_positions(mic_csv)
     print(f"Loaded {len(mic_positions)} mic positions from {mic_csv}")
 
-    sg_cfg = config["scan_grid"]
-    SCAN_R_MAX = float(sg_cfg["r_max"])
-    N_SCAN_R = int(sg_cfg["n_r"])
-    N_SCAN_THETA = int(sg_cfg["n_theta"])
+    SCAN_R_MAX = float(config.scan_grid.r_max)
+    N_SCAN_R = int(config.scan_grid.n_r)
+    N_SCAN_THETA = int(config.scan_grid.n_theta)
 
-    FFT_SIZE = int(config["fft_size"])
-    OVERLAP = float(config["overlap"])
-    F_MIN = float(config["f_min"])
-    F_MAX = float(config["f_max"])
+    FFT_SIZE = int(config.fft_size)
+    OVERLAP = float(config.overlap)
+    F_MIN = float(config.f_min)
+    F_MAX = float(config.f_max)
 
-    OUTPUT_IMAGE = str(config["output_image"])
+    OUTPUT_IMAGE = str(config.output_image)
 
     SOURCES = []
-    for s in config.get("sources", []):
+    for s in config.sources:
         SOURCES.append({
-            "R": float(s["R"]),
-            "phi0": float(s["phi0"]),
-            "freq": float(s["freq"]),
-            "amplitude": float(s["amplitude"]),
-            "phase": float(s.get("phase", 0.0)),
+            "R": float(s.R),
+            "phi0": float(s.phi0),
+            "freq": float(s.freq),
+            "amplitude": float(s.amplitude),
+            "phase": float(s.phase),
             "omega": OMEGA,
         })
 
