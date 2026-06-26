@@ -85,6 +85,8 @@ You can add a custom array to `mics.csv` as described above. You can also genera
 
 This will create an array with 24 microphones (`N`) at 1 meter radius `R`, at 1.5 m distance from the source plane (`Z`).
 
+Warning: this will overwrite the existing `mics.py`, unless you specify an output microphone file name too with `-o filename.csv`.
+
 ## Performance
 
 For a realistic case (161×161 scan grid, 30 s signal at 44100 Hz), the script automatically uses Numba's JIT compiler if available, giving a ~7× speedup over the pure-numpy fallback:
