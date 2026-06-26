@@ -44,8 +44,20 @@ def main():
     parser.add_argument(
         "-o", "--output", type=str, default="mics.csv", help="Output CSV filename"
     )
+    parser.add_argument(
+        "-f", "--force", action="store_true", help="Overwrite output file without prompting"
+    )
 
     args = parser.parse_args()
+
+    # Check if file exists and prompt before overwrite
+    from pathlib import Path
+    output_path = Path(args.output)
+    if output_path.exists() and not args.force:
+        response = input(f"File '{args.output}' already exists. Overwrite? [y/N]: ").strip().lower()
+        if response != "y":
+            print("Cancelled.")
+            return
 
     generate_cylindrical_csv(args.output, args.N, args.R, args.Z)
 

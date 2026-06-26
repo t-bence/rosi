@@ -18,10 +18,14 @@ You need [uv](https://docs.astral.sh/uv/getting-started/installation/) — a fas
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Then run (uv handles the Python version and all dependencies automatically):
+Then use the `rosi` command (uv handles the Python version and all dependencies automatically):
 
 ```bash
-uv run main.py
+# Validate everything is ready
+./rosi validate
+
+# Run the simulation + beamforming
+./rosi run
 ```
 
 That's it. On first run uv will download Python and install packages if needed. Subsequent runs are instant.
@@ -77,15 +81,64 @@ x,y,z
 
 Replace `mics.csv` with your own array layout, or point `mic_positions_csv` at a different file.
 
+## Command-line interface
+
+All ROSI tasks use the `rosi` command:
+
+```bash
+./rosi --help                                    # Show all commands
+./rosi validate                                  # Validate config and check dependencies
+./rosi generate-array -N 24 -R 1.5 -Z 2.0      # Create microphone array
+./rosi run                                       # Run simulation + beamforming
+```
+
+### Run simulation with custom parameters
+
+Override any config value without editing `config.yaml`:
+
+```bash
+./rosi run --rpm 600 --duration 5               # Change rotor speed and duration
+./rosi run --f-min 1000 --f-max 5000            # Change frequency band
+./rosi run --config my_experiment.yaml          # Use a different config file
+./rosi run --output my_results.png              # Custom output filename
+```
+
+### Validation and dry-run
+
+Validate your configuration before running a long simulation:
+
+```bash
+./rosi validate                                  # Check config, deps, and numba
+./rosi run --dry-run                             # Show merged config, don't compute
+./rosi run --dry-run --rpm 1200 --duration 30   # Preview what will run
+```
+
+### Headless mode
+
+Skip matplotlib and save directly to file:
+
+```bash
+./rosi run --no-plot --output /tmp/result.png
+```
+
 ## Generate a microphone array
 
-You can add a custom array to `mics.csv` as described above. You can also generate a uniform circular array by running the following:
+Generate a uniform circular microphone array:
 
-`uv run utils/generate_array.py -N 24 -R 1 -Z 1.5`
+```bash
+./rosi generate-array -N 24 -R 1.5 -Z 2.0
+```
 
-This will create an array with 24 microphones (`N`) at 1 meter radius `R`, at 1.5 m distance from the source plane (`Z`).
+This creates an array with 24 microphones (`-N`) at 1.5 meter radius (`-R`), at 2.0 m height (`-Z`).
 
-Warning: this will overwrite the existing `mics.py`, unless you specify an output microphone file name too with `-o filename.csv`.
+The command will **prompt before overwriting** the output file for safety. Use `-f` / `--force` to skip the prompt:
+
+```bash
+./rosi generate-array -N 32 -R 2.0 -Z 1.5 -o my_array.csv      # Creates my_array.csv
+./rosi generate-array -N 32 -R 2.0 -Z 1.5 -o my_array.csv -f   # Force overwrite
+```
+
+You can also manually edit `mics.csv` (a plain CSV with columns `x, y, z` in metres). An optional header row is allowed; lines starting with `#` are ignored.
 
 ## Performance
 
@@ -104,12 +157,15 @@ It seems that 1 s of signal takes around 80 s, 10 s of signal takes 800 s to sim
 ## Files
 
 ```
+rosi                      — CLI entry point (run commands via this script)
 config.yaml               — all settings (edit this, not the Python files)
 mics.csv                  — microphone positions (x, y, z in metres)
 main.py                   — entry point and plots
+rosi_cli.py               — CLI command definitions
 rosi_sim.py               — simulate rotating sources → mic signals
 rosi_beamform.py          — frequency-domain ROSI beamformer (numpy + joblib)
 rosi_beamform_numba.py    — same algorithm, Numba JIT (faster)
+utils/generate_array.py   — generate circular microphone arrays
 ```
 
 ## Method reference

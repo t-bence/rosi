@@ -32,6 +32,7 @@ Memory: das buffer is (chunk_size, N_emit) float64.  Default chunk_size=500:
 import numpy as np
 from numba import njit, prange
 from scipy.signal import get_window
+from tqdm import tqdm
 
 
 @njit(parallel=True, cache=True, fastmath=True)
@@ -168,10 +169,8 @@ def rosi_beamform_freq_numba(
 
     power_map = np.zeros((n_scan, int(freq_mask.sum())), dtype=np.float32)
 
-    for chunk_start in range(0, n_scan, chunk_size):
+    for chunk_start in tqdm(range(0, n_scan, chunk_size), desc="Beamforming", unit="point"):
         chunk_end = min(chunk_start + chunk_size, n_scan)
-        if verbose:
-            print(f"  {100*chunk_start/n_scan:5.1f}%", end="\r", flush=True)
 
         das = _compute_das_chunk(
             np.ascontiguousarray(P_all[chunk_start:chunk_end]),
@@ -189,8 +188,5 @@ def rosi_beamform_freq_numba(
         psd /= len(starts)
 
         power_map[chunk_start:chunk_end] = psd[:, freq_mask].astype(np.float32)
-
-    if verbose:
-        print(f"  100.0%  done")
 
     return freqs_out, power_map

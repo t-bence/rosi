@@ -1,5 +1,5 @@
 # ROSI configuration
-# Run with: uv run main.py
+# Run with: rosi run
 
 # ── Signal ────────────────────────────────────────────────────────────────────
 sample_rate:    44100    # Hz
@@ -24,6 +24,9 @@ fft_size: 1024   # Welch block length (applied to de-rotated DAS signal)
 overlap:  0.5   # Welch block overlap fraction (0–1)
 f_min:    2000  # lower edge of the frequency band to compute [Hz]
 f_max:    8000  # upper edge of the frequency band to compute [Hz]
+
+# ── Output ────────────────────────────────────────────────────────────────────
+output_image: rosi_result.png  # output PNG filename
 
 # ── Sources (simulation only) ─────────────────────────────────────────────────
 # Each source is a tonal point source rotating with the rotor.

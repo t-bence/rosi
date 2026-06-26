@@ -16,6 +16,7 @@ Parallelism: joblib process pool over the scan-point axis (embarrassingly parall
 import numpy as np
 from scipy.signal import get_window
 from joblib import Parallel, delayed, cpu_count
+from tqdm import tqdm
 
 
 # ── Scan grid ─────────────────────────────────────────────────────────────────
@@ -157,13 +158,18 @@ def rosi_beamform_freq(
         print(f"  Workers: {n_workers}  |  scan points: {n_scan}  |  "
               f"N_emit: {n_emit:,}  |  Welch blocks/pt: {len(block_starts)}")
 
-    results = Parallel(n_jobs=n_jobs, backend="loky", verbose=0)(
+    # Use tqdm to wrap the generator for progress bar
+    jobs_gen = (
         delayed(_beamform_one)(
             k, scan_grid, signals, t_emit, t_sig,
             mic_positions, omega, c,
             fft_size, win, block_starts, freq_mask,
         )
         for k in range(n_scan)
+    )
+
+    results = Parallel(n_jobs=n_jobs, backend="loky", verbose=0)(
+        tqdm(jobs_gen, total=n_scan, desc="Beamforming", unit="point")
     )
 
     power_map = np.array(results)   # (N_scan, N_f)

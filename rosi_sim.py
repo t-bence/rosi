@@ -4,6 +4,7 @@ rosi_sim.py — Simulation of rotating acoustic point sources recorded by a micr
 
 import numpy as np
 from scipy.interpolate import interp1d
+from tqdm import tqdm
 
 
 def make_mic_array(n_mics: int, radius: float, z: float = 1.5) -> np.ndarray:
@@ -86,7 +87,7 @@ def simulate_signals(
     n_mics = mic_positions.shape[0]
     signals = np.zeros((n_mics, n_samples))
 
-    for src in sources:
+    for src in tqdm(sources, desc="Simulating sources", unit="source"):
         R, omega, phi0 = src["R"], src["omega"], src["phi0"]
         freq, amp, psi = src["freq"], src["amplitude"], src["phase"]
 

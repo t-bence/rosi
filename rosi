@@ -1,0 +1,12 @@
+#!/bin/bash
+# rosi — ROSI CLI wrapper
+# Runs ROSI commands with proper Python environment via uv
+
+set -e
+
+# Find the directory of this script
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+
+# Run rosi_cli through uv
+uv run python -m rosi_cli "$@"
