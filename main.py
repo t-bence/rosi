@@ -8,26 +8,29 @@ Run with:
     rosi run
 """
 
+import argparse
 import sys
 import time
-import argparse
-import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+from pydantic import ValidationError
 from scipy.interpolate import griddata
 from scipy.io import savemat
-from pydantic import ValidationError
 
-from config_schema import load_config_from_yaml, merge_config_with_overrides, ROSIConfig
+from config_schema import ROSIConfig, load_config_from_yaml, merge_config_with_overrides
+from rosi_beamform import compute_global_csm, make_scan_grid, power_map_to_grid
 from rosi_sim import simulate_signals
 from rosi_wav import load_wav_signals
-from rosi_beamform import make_scan_grid, compute_global_csm, power_map_to_grid
 
 try:
     from rosi_beamform_numba import rosi_beamform_freq_numba as beamform
+
     _BACKEND = "Numba JIT (fast)"
 except ImportError:
     from rosi_beamform import rosi_beamform_freq as beamform
+
     _BACKEND = "numpy + joblib (install numba for ~7× speedup)"
 
 # ── Config loading and validation ──────────────────────────────────────────────
@@ -54,7 +57,9 @@ def load_mic_positions(csv_path: str | Path) -> np.ndarray:
         raise ValueError(f"{csv_path}: no numeric rows found")
     arr = np.array(rows, dtype=np.float64)
     if arr.shape[1] != 3:
-        raise ValueError(f"{csv_path}: expected 3 columns (x, y, z), got {arr.shape[1]}")
+        raise ValueError(
+            f"{csv_path}: expected 3 columns (x, y, z), got {arr.shape[1]}"
+        )
     return arr
 
 
@@ -65,7 +70,7 @@ def load_and_validate_config(config_path: str, cli_args) -> ROSIConfig:
     """
     # Load YAML config
     config = load_config_from_yaml(config_path)
-    
+
     # Prepare CLI overrides
     overrides = {
         "sample_rate": cli_args.sample_rate,
@@ -82,14 +87,23 @@ def load_and_validate_config(config_path: str, cli_args) -> ROSIConfig:
         "f_max": cli_args.f_max,
         "output_image": cli_args.output,
     }
-    
+
+    # WAV input overrides (build sub-dict so merge_config_with_overrides can handle it)
+    wav_file = getattr(cli_args, "wav_file", None)
+    if wav_file is not None:
+        wav_override: dict = {"path": wav_file}
+        tacho_ch = getattr(cli_args, "tacho_channel", None)
+        if tacho_ch is not None:
+            wav_override["tacho_channel"] = tacho_ch
+        overrides["wav_input"] = wav_override
+
     # Remove None values
     overrides = {k: v for k, v in overrides.items() if v is not None}
-    
+
     # Merge and re-validate
     if overrides:
         config = merge_config_with_overrides(config, overrides)
-    
+
     return config
 
 
@@ -98,7 +112,7 @@ def load_and_validate_config(config_path: str, cli_args) -> ROSIConfig:
 
 def main_with_args(args):
     """Run ROSI with parsed CLI arguments."""
-    
+
     # Load and validate config with Pydantic
     try:
         config = load_and_validate_config(args.config, args)
@@ -124,7 +138,6 @@ def main_with_args(args):
 
     # Extract config values
     C = float(config.speed_of_sound)
-    OMEGA = 2 * np.pi * float(config.rpm) / 60
 
     mic_csv = Path(config.mic_positions_csv)
     mic_positions = load_mic_positions(mic_csv)
@@ -141,16 +154,56 @@ def main_with_args(args):
 
     OUTPUT_IMAGE = str(config.output_image)
 
-    SOURCES = []
-    for s in config.sources:
-        SOURCES.append({
-            "R": float(s.R),
-            "phi0": float(s.phi0),
-            "freq": float(s.freq),
-            "amplitude": float(s.amplitude),
-            "phase": float(s.phase),
-            "omega": OMEGA,
-        })
+    # ── WAV input or simulation ────────────────────────────────────────────────
+
+    if config.wav_input is not None:
+        from rpm_from_wav import load_signals_from_wav
+
+        rpm, FS, t, signals = load_signals_from_wav(
+            config.wav_input.path,
+            config.wav_input.tacho_channel,
+            threshold=config.wav_input.threshold,
+        )
+        T_TOTAL = float(t[-1])
+        OMEGA = 2 * np.pi * rpm / 60
+
+        # The WAV has the same channel count as the CSV rows; one slot is the
+        # tachometer.  Drop the matching mic position so shapes stay consistent.
+        n_wav_mics = signals.shape[0]
+        if n_wav_mics != len(mic_positions) - 1:
+            print(
+                f"WARNING: WAV has {n_wav_mics} mic channel(s) after removing "
+                f"tachometer, but CSV has {len(mic_positions)} row(s). "
+                "Expected CSV rows = WAV channels (mics + 1 tacho)."
+            )
+        else:
+            tacho_idx = config.wav_input.tacho_channel % (n_wav_mics + 1)
+            mic_positions = np.delete(mic_positions, tacho_idx, axis=0)
+
+        SOURCES = []
+        print(
+            f"WAV input: {len(mic_positions)} mic(s), {FS} Hz, "
+            f"{T_TOTAL:.2f} s, RPM = {rpm:.2f}"
+        )
+
+    else:
+        # Simulation mode
+        FS = int(config.sample_rate)
+        T_TOTAL = float(config.duration)
+        OMEGA = 2 * np.pi * float(config.rpm) / 60
+
+        SOURCES = []
+        for s in config.sources:
+            SOURCES.append(
+                {
+                    "R": float(s.R),
+                    "phi0": float(s.phi0),
+                    "freq": float(s.freq),
+                    "amplitude": float(s.amplitude),
+                    "phase": float(s.phase),
+                    "omega": OMEGA,
+                }
+            )
 
     # ── Acquire signals ───────────────────────────────────────────────────────
 
@@ -161,17 +214,21 @@ def main_with_args(args):
         n_wav_ch = signals.shape[0]
         n_mics = len(mic_positions)
         if n_wav_ch != n_mics:
-            print(f"ERROR: WAV has {n_wav_ch} channels but mic array has {n_mics} positions")
+            print(
+                f"ERROR: WAV has {n_wav_ch} channels but mic array has {n_mics} positions"
+            )
             return 1
         print(f"  {n_wav_ch} channels, {FS} Hz, {T_TOTAL:.2f} s")
     else:
         FS = int(config.sample_rate)
         T_TOTAL = float(config.duration)
-        print(f"Simulating {len(SOURCES)} source(s) on {len(mic_positions)} mics "
-              f"({FS} Hz, {T_TOTAL:.1f} s)...")
+        print(
+            f"Simulating {len(SOURCES)} source(s) on {len(mic_positions)} mics "
+            f"({FS} Hz, {T_TOTAL:.1f} s)..."
+        )
         t0 = time.time()
         t, signals = simulate_signals(SOURCES, mic_positions, FS, T_TOTAL, C)
-        print(f"  Done in {time.time()-t0:.2f} s")
+        print(f"  Done in {time.time() - t0:.2f} s")
 
     # ── Global CSM (informational only) ────────────────────────────────────
 
@@ -184,8 +241,16 @@ def main_with_args(args):
     print(f"Running ROSI beamformer on {len(scan_grid)} scan points [{_BACKEND}]...")
     t0 = time.time()
     freqs_out, power_map = beamform(
-        signals, t, mic_positions, scan_grid, OMEGA, C,
-        fft_size=FFT_SIZE, overlap=OVERLAP, f_min=F_MIN, f_max=F_MAX,
+        signals,
+        t,
+        mic_positions,
+        scan_grid,
+        OMEGA,
+        C,
+        fft_size=FFT_SIZE,
+        overlap=OVERLAP,
+        f_min=F_MIN,
+        f_max=F_MAX,
     )
     elapsed = time.time() - t0
     print(f"  Done in {elapsed:.2f} s")
@@ -193,24 +258,31 @@ def main_with_args(args):
     # ── Save results ──────────────────────────────────────────────────────
 
     mat_path = Path(OUTPUT_IMAGE).with_suffix(".mat")
-    savemat(str(mat_path), {
-        "freqs_csm":      freqs_csm,
-        "C_csm":          C_csm,
-        "freqs_beamform": freqs_out,
-        "power_map":      power_map,
-        "scan_grid":      scan_grid,
-    })
+    savemat(
+        str(mat_path),
+        {
+            "freqs_csm": freqs_csm,
+            "C_csm": C_csm,
+            "freqs_beamform": freqs_out,
+            "power_map": power_map,
+            "scan_grid": scan_grid,
+        },
+    )
     print(f"Saved results → {mat_path}")
 
     # ── Timing extrapolation ───────────────────────────────────────────────
 
-    n_emit_now = int(np.sum(t < t[-1] - (np.max(np.linalg.norm(mic_positions, axis=1)) + SCAN_R_MAX) / C))
+    n_emit_now = int(
+        np.sum(
+            t < t[-1] - (np.max(np.linalg.norm(mic_positions, axis=1)) + SCAN_R_MAX) / C
+        )
+    )
     n_emit_tgt = int(30 * 44100)
     n_scan_tgt = 161 * 161
     cost_ratio = (n_emit_tgt / n_emit_now) * (n_scan_tgt / len(scan_grid))
     t_tgt = elapsed * cost_ratio
     print("\n  Extrapolation to 161×161 grid, 30 s @ 44100 Hz:")
-    print(f"    Estimated time: {t_tgt:,.0f} s = {t_tgt/3600:.1f} h")
+    print(f"    Estimated time: {t_tgt:,.0f} s = {t_tgt / 3600:.1f} h")
 
     # ── Plot ───────────────────────────────────────────────────────────────
 
@@ -221,11 +293,17 @@ def main_with_args(args):
         # Panel 1: global CSM at source frequency (shows smearing — expected)
         ax1 = fig.add_subplot(1, 3, 1)
         f_idx_csm = np.argmin(np.abs(freqs_csm - SOURCES[0]["freq"])) if SOURCES else 0
-        im = ax1.imshow(20 * np.log10(np.abs(C_csm[f_idx_csm]) + 1e-12),
-                        cmap="viridis", origin="upper", aspect="equal")
+        im = ax1.imshow(
+            20 * np.log10(np.abs(C_csm[f_idx_csm]) + 1e-12),
+            cmap="viridis",
+            origin="upper",
+            aspect="equal",
+        )
         fig.colorbar(im, ax=ax1, label="dB")
-        ax1.set_title(f"Raw CSM @ {freqs_csm[f_idx_csm]:.0f} Hz\n"
-                      f"(spatial smearing expected for rotating sources)")
+        ax1.set_title(
+            f"Raw CSM @ {freqs_csm[f_idx_csm]:.0f} Hz\n"
+            f"(spatial smearing expected for rotating sources)"
+        )
         ax1.set_xlabel("Mic index")
         ax1.set_ylabel("Mic index")
 
@@ -235,7 +313,8 @@ def main_with_args(args):
 
         f_plot_idx = np.argmin(np.abs(freqs_out - SOURCES[0]["freq"])) if SOURCES else 0
         r_vals, theta_vals, power_2d = power_map_to_grid(
-            power_map, scan_grid, N_SCAN_R, N_SCAN_THETA, freq_idx=f_plot_idx)
+            power_map, scan_grid, N_SCAN_R, N_SCAN_THETA, freq_idx=f_plot_idx
+        )
         power_db = 10 * np.log10(power_2d / power_2d.max() + 1e-12)
 
         TT, RR = np.meshgrid(theta_vals, r_vals)
@@ -246,7 +325,9 @@ def main_with_args(args):
         lim = SCAN_R_MAX * 1.05
         gx, gy = np.linspace(-lim, lim, 200), np.linspace(-lim, lim, 200)
         GX, GY = np.meshgrid(gx, gy)
-        GV = griddata((pts_x, pts_y), pts_v, (GX, GY), method="linear", fill_value=np.nan)
+        GV = griddata(
+            (pts_x, pts_y), pts_v, (GX, GY), method="linear", fill_value=np.nan
+        )
         GV[GX**2 + GY**2 > SCAN_R_MAX**2] = np.nan
 
         pcm = ax2.pcolormesh(GX, GY, GV, cmap="hot_r", vmin=-6, vmax=0, shading="auto")
@@ -255,17 +336,29 @@ def main_with_args(args):
         bin_half = (freqs_out[1] - freqs_out[0]) / 2
         for i, src in enumerate(SOURCES):
             if abs(src["freq"] - freqs_out[f_plot_idx]) <= bin_half:
-                ax2.scatter([src["R"] * np.cos(src["phi0"])],
-                            [src["R"] * np.sin(src["phi0"])],
-                            marker="o", s=150, color="none", edgecolors="cyan",
-                            linewidths=2.5, zorder=5, label=f"Src {i+1} ({src['freq']:.0f} Hz)")
+                ax2.scatter(
+                    [src["R"] * np.cos(src["phi0"])],
+                    [src["R"] * np.sin(src["phi0"])],
+                    marker="o",
+                    s=150,
+                    color="none",
+                    edgecolors="cyan",
+                    linewidths=2.5,
+                    zorder=5,
+                    label=f"Src {i + 1} ({src['freq']:.0f} Hz)",
+                )
 
         for r_ring in np.linspace(SCAN_R_MAX / 4, SCAN_R_MAX, 4):
-            ax2.add_patch(plt.Circle((0, 0), r_ring, fill=False,
-                                      color="white", alpha=0.3, linewidth=0.8))
+            ax2.add_patch(
+                plt.Circle(
+                    (0, 0), r_ring, fill=False, color="white", alpha=0.3, linewidth=0.8
+                )
+            )
         ax2.set_xlabel("x [m]")
         ax2.set_ylabel("y [m]")
-        ax2.set_title(f"ROSI map @ {freqs_out[f_plot_idx]:.0f} Hz\n(rotating frame, 6 dB range)")
+        ax2.set_title(
+            f"ROSI map @ {freqs_out[f_plot_idx]:.0f} Hz\n(rotating frame, 6 dB range)"
+        )
         ax2.legend(fontsize=8)
         ax2.grid(True, alpha=0.2, color="white")
 
@@ -273,11 +366,24 @@ def main_with_args(args):
         ax3 = fig.add_subplot(1, 3, 3)
         peak_idx = np.argmax(power_map[:, f_plot_idx])
         bg_idx = np.argmin(power_map[:, f_plot_idx])
-        ax3.semilogy(freqs_out / 1e3, power_map[peak_idx], label="Peak scan point", linewidth=1.5)
-        ax3.semilogy(freqs_out / 1e3, power_map[bg_idx], label="Min scan point", linewidth=1.0, alpha=0.7)
+        ax3.semilogy(
+            freqs_out / 1e3, power_map[peak_idx], label="Peak scan point", linewidth=1.5
+        )
+        ax3.semilogy(
+            freqs_out / 1e3,
+            power_map[bg_idx],
+            label="Min scan point",
+            linewidth=1.0,
+            alpha=0.7,
+        )
         for src in SOURCES:
-            ax3.axvline(src["freq"] / 1e3, color="red", linestyle="--", alpha=0.5,
-                        label=f"{src['freq']:.0f} Hz")
+            ax3.axvline(
+                src["freq"] / 1e3,
+                color="red",
+                linestyle="--",
+                alpha=0.5,
+                label=f"{src['freq']:.0f} Hz",
+            )
         ax3.set_xlabel("Frequency [kHz]")
         ax3.set_ylabel("DAS power")
         ax3.set_title("Per-scan-point DAS spectrum")
@@ -298,7 +404,7 @@ def main():
     """Backward compatibility: allow running as script."""
     parser = argparse.ArgumentParser(
         prog="main.py",
-        description="ROSI — Rotating Source Identification (backward compat entry point)"
+        description="ROSI — Rotating Source Identification (backward compat entry point)",
     )
     parser.add_argument("--config", type=str, default="config.yaml")
     parser.add_argument("--output", type=str, default=None)
@@ -316,6 +422,8 @@ def main():
     parser.add_argument("--overlap", type=float)
     parser.add_argument("--f-min", type=float)
     parser.add_argument("--f-max", type=float)
+    parser.add_argument("--wav-file", type=str)
+    parser.add_argument("--tacho-channel", type=int, default=None)
 
     args = parser.parse_args()
     sys.exit(main_with_args(args))

@@ -152,7 +152,17 @@ def main():
     run.add_argument("--overlap", type=float, help="Override overlap")
     run.add_argument("--f-min", type=float, help="Override f_min")
     run.add_argument("--f-max", type=float, help="Override f_max")
-    
+
+    # WAV input with optical tachometer
+    run.add_argument(
+        "--wav-file", type=str, metavar="PATH",
+        help="Multi-channel WAV file; one channel is an optical tachometer",
+    )
+    run.add_argument(
+        "--tacho-channel", type=int, default=None, metavar="INDEX",
+        help="0-based channel index of the tachometer in the WAV file (default: 0)",
+    )
+
     run.set_defaults(func=cmd_run)
     
     # Parse and dispatch
