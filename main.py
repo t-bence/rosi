@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from config_schema import load_config_from_yaml, merge_config_with_overrides, ROSIConfig
 from rosi_sim import simulate_signals
+from rosi_wav import load_wav_signals
 from rosi_beamform import make_scan_grid, compute_global_csm, power_map_to_grid
 
 try:
@@ -122,8 +123,6 @@ def main_with_args(args):
         return 0
 
     # Extract config values
-    FS = int(config.sample_rate)
-    T_TOTAL = float(config.duration)
     C = float(config.speed_of_sound)
     OMEGA = 2 * np.pi * float(config.rpm) / 60
 
@@ -153,13 +152,26 @@ def main_with_args(args):
             "omega": OMEGA,
         })
 
-    # ── Simulate ──────────────────────────────────────────────────────────────
+    # ── Acquire signals ───────────────────────────────────────────────────────
 
-    print(f"Simulating {len(SOURCES)} source(s) on {len(mic_positions)} mics "
-          f"({FS} Hz, {T_TOTAL:.1f} s)...")
-    t0 = time.time()
-    t, signals = simulate_signals(SOURCES, mic_positions, FS, T_TOTAL, C)
-    print(f"  Done in {time.time()-t0:.2f} s")
+    if config.wav_file:
+        print(f"Loading signals from WAV: {config.wav_file}")
+        FS, t, signals = load_wav_signals(config.wav_file)
+        T_TOTAL = float(t[-1])
+        n_wav_ch = signals.shape[0]
+        n_mics = len(mic_positions)
+        if n_wav_ch != n_mics:
+            print(f"ERROR: WAV has {n_wav_ch} channels but mic array has {n_mics} positions")
+            return 1
+        print(f"  {n_wav_ch} channels, {FS} Hz, {T_TOTAL:.2f} s")
+    else:
+        FS = int(config.sample_rate)
+        T_TOTAL = float(config.duration)
+        print(f"Simulating {len(SOURCES)} source(s) on {len(mic_positions)} mics "
+              f"({FS} Hz, {T_TOTAL:.1f} s)...")
+        t0 = time.time()
+        t, signals = simulate_signals(SOURCES, mic_positions, FS, T_TOTAL, C)
+        print(f"  Done in {time.time()-t0:.2f} s")
 
     # ── Global CSM (informational only) ────────────────────────────────────
 
