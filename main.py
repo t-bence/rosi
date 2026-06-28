@@ -81,7 +81,16 @@ def load_and_validate_config(config_path: str, cli_args) -> ROSIConfig:
         "f_max": cli_args.f_max,
         "output_image": cli_args.output,
     }
-    
+
+    # WAV input overrides (build sub-dict so merge_config_with_overrides can handle it)
+    wav_file = getattr(cli_args, "wav_file", None)
+    if wav_file is not None:
+        wav_override: dict = {"path": wav_file}
+        tacho_ch = getattr(cli_args, "tacho_channel", None)
+        if tacho_ch is not None:
+            wav_override["tacho_channel"] = tacho_ch
+        overrides["wav_input"] = wav_override
+
     # Remove None values
     overrides = {k: v for k, v in overrides.items() if v is not None}
     
@@ -122,10 +131,7 @@ def main_with_args(args):
         return 0
 
     # Extract config values
-    FS = int(config.sample_rate)
-    T_TOTAL = float(config.duration)
     C = float(config.speed_of_sound)
-    OMEGA = 2 * np.pi * float(config.rpm) / 60
 
     mic_csv = Path(config.mic_positions_csv)
     mic_positions = load_mic_positions(mic_csv)
@@ -142,24 +148,60 @@ def main_with_args(args):
 
     OUTPUT_IMAGE = str(config.output_image)
 
-    SOURCES = []
-    for s in config.sources:
-        SOURCES.append({
-            "R": float(s.R),
-            "phi0": float(s.phi0),
-            "freq": float(s.freq),
-            "amplitude": float(s.amplitude),
-            "phase": float(s.phase),
-            "omega": OMEGA,
-        })
+    # ── WAV input or simulation ────────────────────────────────────────────────
 
-    # ── Simulate ──────────────────────────────────────────────────────────────
+    if config.wav_input is not None:
+        from rpm_from_wav import load_signals_from_wav
 
-    print(f"Simulating {len(SOURCES)} source(s) on {len(mic_positions)} mics "
-          f"({FS} Hz, {T_TOTAL:.1f} s)...")
-    t0 = time.time()
-    t, signals = simulate_signals(SOURCES, mic_positions, FS, T_TOTAL, C)
-    print(f"  Done in {time.time()-t0:.2f} s")
+        rpm, FS, t, signals = load_signals_from_wav(
+            config.wav_input.path,
+            config.wav_input.tacho_channel,
+            threshold=config.wav_input.threshold,
+        )
+        T_TOTAL = float(t[-1])
+        OMEGA = 2 * np.pi * rpm / 60
+
+        # The WAV has the same channel count as the CSV rows; one slot is the
+        # tachometer.  Drop the matching mic position so shapes stay consistent.
+        n_wav_mics = signals.shape[0]
+        if n_wav_mics != len(mic_positions) - 1:
+            print(
+                f"WARNING: WAV has {n_wav_mics} mic channel(s) after removing "
+                f"tachometer, but CSV has {len(mic_positions)} row(s). "
+                "Expected CSV rows = WAV channels (mics + 1 tacho)."
+            )
+        else:
+            tacho_idx = config.wav_input.tacho_channel % (n_wav_mics + 1)
+            mic_positions = np.delete(mic_positions, tacho_idx, axis=0)
+
+        SOURCES = []
+        print(
+            f"WAV input: {len(mic_positions)} mic(s), {FS} Hz, "
+            f"{T_TOTAL:.2f} s, RPM = {rpm:.2f}"
+        )
+
+    else:
+        # Simulation mode
+        FS = int(config.sample_rate)
+        T_TOTAL = float(config.duration)
+        OMEGA = 2 * np.pi * float(config.rpm) / 60
+
+        SOURCES = []
+        for s in config.sources:
+            SOURCES.append({
+                "R": float(s.R),
+                "phi0": float(s.phi0),
+                "freq": float(s.freq),
+                "amplitude": float(s.amplitude),
+                "phase": float(s.phase),
+                "omega": OMEGA,
+            })
+
+        print(f"Simulating {len(SOURCES)} source(s) on {len(mic_positions)} mics "
+              f"({FS} Hz, {T_TOTAL:.1f} s)...")
+        t0 = time.time()
+        t, signals = simulate_signals(SOURCES, mic_positions, FS, T_TOTAL, C)
+        print(f"  Done in {time.time()-t0:.2f} s")
 
     # ── Global CSM (informational only) ────────────────────────────────────
 
@@ -304,6 +346,8 @@ def main():
     parser.add_argument("--overlap", type=float)
     parser.add_argument("--f-min", type=float)
     parser.add_argument("--f-max", type=float)
+    parser.add_argument("--wav-file", type=str)
+    parser.add_argument("--tacho-channel", type=int, default=None)
 
     args = parser.parse_args()
     sys.exit(main_with_args(args))

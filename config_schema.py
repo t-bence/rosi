@@ -3,6 +3,7 @@ config_schema.py — Pydantic models for ROSI configuration validation.
 """
 
 from pathlib import Path
+from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -25,14 +26,41 @@ class SourceConfig(BaseModel):
     phase: float = Field(default=0.0, description="Initial phase [radians]")
 
 
+class WavInputConfig(BaseModel):
+    """Configuration for loading signals from a WAV file with an optical tachometer."""
+
+    path: str = Field(description="Path to the multi-channel WAV file")
+    tacho_channel: int = Field(
+        default=0,
+        description="0-based index of the tachometer channel within the WAV file",
+    )
+    threshold: Optional[float] = Field(
+        default=None,
+        description="Edge-detection threshold for the tachometer signal (auto if None)",
+    )
+
+    @field_validator("path")
+    @classmethod
+    def wav_must_exist(cls, v: str) -> str:
+        if not Path(v).exists():
+            raise ValueError(f"WAV file not found: {v}")
+        return v
+
+
 class ROSIConfig(BaseModel):
     """Complete ROSI configuration."""
 
-    # Signal parameters
-    sample_rate: int = Field(gt=0, description="Sample rate [Hz]")
-    duration: float = Field(gt=0, description="Signal duration [seconds]")
+    # Signal parameters — optional when wav_input is provided (derived from WAV)
+    sample_rate: Optional[int] = Field(default=None, description="Sample rate [Hz]")
+    duration: Optional[float] = Field(default=None, description="Signal duration [seconds]")
     speed_of_sound: float = Field(gt=0, description="Speed of sound [m/s]")
-    rpm: float = Field(ge=0, description="Rotor speed [rev/min]")
+    rpm: Optional[float] = Field(default=None, description="Rotor speed [rev/min]")
+
+    # WAV input (mutually exclusive with simulated sources for RPM/timing)
+    wav_input: Optional[WavInputConfig] = Field(
+        default=None,
+        description="Load signals from a WAV file; tachometer channel provides RPM",
+    )
 
     # Microphone array
     mic_positions_csv: str = Field(description="Path to microphone positions CSV")
@@ -67,8 +95,34 @@ class ROSIConfig(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def f_max_greater_than_f_min(self) -> "ROSIConfig":
-        """Validate f_max > f_min."""
+    def check_mode_and_required_fields(self) -> "ROSIConfig":
+        """
+        In simulation mode (no wav_input), sample_rate, duration, and rpm must
+        all be specified with valid positive values.  In WAV mode they are
+        derived from the WAV file and may be omitted from the config.
+        """
+        if self.wav_input is None:
+            missing = [
+                name
+                for name, val in [
+                    ("sample_rate", self.sample_rate),
+                    ("duration", self.duration),
+                    ("rpm", self.rpm),
+                ]
+                if val is None
+            ]
+            if missing:
+                raise ValueError(
+                    f"The following fields are required when wav_input is not set: "
+                    + ", ".join(missing)
+                )
+            if self.sample_rate is not None and self.sample_rate <= 0:
+                raise ValueError("sample_rate must be > 0")
+            if self.duration is not None and self.duration <= 0:
+                raise ValueError("duration must be > 0")
+            if self.rpm is not None and self.rpm < 0:
+                raise ValueError("rpm must be >= 0")
+
         if self.f_max <= self.f_min:
             raise ValueError("f_max must be > f_min")
         return self
@@ -123,11 +177,17 @@ def merge_config_with_overrides(config: ROSIConfig, overrides: dict) -> ROSIConf
         if value is None:
             continue
 
-        # Handle nested keys
+        # Handle nested scan_grid keys
         if key in ["r_max", "n_r", "n_theta"]:
             if "scan_grid" not in config_dict:
                 config_dict["scan_grid"] = {}
             config_dict["scan_grid"][key] = value
+        # Handle nested wav_input keys (dict merge)
+        elif key == "wav_input" and isinstance(value, dict):
+            if config_dict.get("wav_input") is None:
+                config_dict["wav_input"] = value
+            else:
+                config_dict["wav_input"].update(value)
         else:
             config_dict[key] = value
 
