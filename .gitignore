@@ -12,6 +12,7 @@ wheels/
 # Output data (results are generated, not committed)
 data/output/*.png
 data/output/*.csv
+data/output/*.mat
 
 # Numba cache
 *.nbc

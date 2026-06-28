@@ -11,7 +11,7 @@
 
 # ── Signal ────────────────────────────────────────────────────────────────────
 sample_rate:    44100    # Hz          (simulation mode only)
-duration:       10.0     # seconds     (simulation mode only)
+duration:       1.0     # seconds     (simulation mode only)
 speed_of_sound: 343.0    # m/s
 rpm:            25       # rotor speed [rev/min]
 
