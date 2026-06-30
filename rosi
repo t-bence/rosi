@@ -8,5 +8,5 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-# Run rosi_cli through uv
-uv run python -m rosi_cli "$@"
+# Run rosi CLI through uv
+uv run python -m rosi.cli "$@"
