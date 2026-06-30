@@ -1,18 +1,17 @@
 """Tests for rosi.sim — signal simulation functions."""
 
 import numpy as np
-import pytest
 
 from rosi.sim import (
     make_mic_array,
-    source_position,
     retarded_time,
     retarded_time_vec,
     simulate_signals,
+    source_position,
 )
 
-
 # ── make_mic_array ────────────────────────────────────────────────────────────
+
 
 class TestMakeMicArray:
     def test_shape(self):
@@ -30,6 +29,7 @@ class TestMakeMicArray:
 
 
 # ── source_position ───────────────────────────────────────────────────────────
+
 
 class TestSourcePosition:
     def test_static_source(self):
@@ -50,6 +50,7 @@ class TestSourcePosition:
 
 
 # ── retarded_time convergence ─────────────────────────────────────────────────
+
 
 class TestRetardedTime:
     def test_static_source_scalar(self):
@@ -73,12 +74,22 @@ class TestRetardedTime:
 
 # ── simulate_signals ──────────────────────────────────────────────────────────
 
+
 class TestSimulateSignals:
     def test_shapes(self):
         fs = 8000
         duration = 0.1
         mics = make_mic_array(4, 1.0, 1.5)
-        sources = [{"R": 0.3, "omega": 1.0, "phi0": 0.0, "freq": 500, "amplitude": 1.0, "phase": 0.0}]
+        sources = [
+            {
+                "R": 0.3,
+                "omega": 1.0,
+                "phi0": 0.0,
+                "freq": 500,
+                "amplitude": 1.0,
+                "phase": 0.0,
+            }
+        ]
         t, signals = simulate_signals(sources, mics, fs, duration, 343.0)
         assert t.shape == (int(fs * duration),)
         assert signals.shape == (4, int(fs * duration))
@@ -93,7 +104,16 @@ class TestSimulateSignals:
         duration = 0.2
         mics = make_mic_array(4, 1.0, 1.5)
         freq = 1000
-        sources = [{"R": 0.3, "omega": 0.0, "phi0": 0.0, "freq": freq, "amplitude": 1.0, "phase": 0.0}]
+        sources = [
+            {
+                "R": 0.3,
+                "omega": 0.0,
+                "phi0": 0.0,
+                "freq": freq,
+                "amplitude": 1.0,
+                "phase": 0.0,
+            }
+        ]
         t, signals = simulate_signals(sources, mics, fs, duration, 343.0)
         fft = np.fft.rfft(signals[0])
         freqs = np.fft.rfftfreq(len(t), d=1.0 / fs)

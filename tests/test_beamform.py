@@ -11,8 +11,8 @@ from rosi.beamform import (
 )
 from rosi.sim import make_mic_array, simulate_signals
 
-
 # ── make_scan_grid ────────────────────────────────────────────────────────────
+
 
 class TestMakeScanGrid:
     def test_shape(self):
@@ -34,13 +34,16 @@ class TestMakeScanGrid:
 
 # ── power_map_to_grid ─────────────────────────────────────────────────────────
 
+
 class TestPowerMapToGrid:
     def test_roundtrip(self):
         n_r, n_theta = 8, 10
         grid = make_scan_grid(1.0, n_r, n_theta)
         n_scan = len(grid)
         power_map = np.random.rand(n_scan, 5)
-        r_vals, theta_vals, power_2d = power_map_to_grid(power_map, grid, n_r, n_theta, freq_idx=2)
+        r_vals, theta_vals, power_2d = power_map_to_grid(
+            power_map, grid, n_r, n_theta, freq_idx=2
+        )
         np.testing.assert_allclose(power_2d.ravel(), power_map[:, 2])
 
     def test_shape(self):
@@ -53,12 +56,22 @@ class TestPowerMapToGrid:
 
 # ── compute_global_csm ────────────────────────────────────────────────────────
 
+
 class TestGlobalCSM:
     def test_hermitian(self):
         fs = 8000
         duration = 0.2
         mics = make_mic_array(4, 1.0, 1.5)
-        sources = [{"R": 0.3, "omega": 0.0, "phi0": 0.0, "freq": 500, "amplitude": 1.0, "phase": 0.0}]
+        sources = [
+            {
+                "R": 0.3,
+                "omega": 0.0,
+                "phi0": 0.0,
+                "freq": 500,
+                "amplitude": 1.0,
+                "phase": 0.0,
+            }
+        ]
         _, signals = simulate_signals(sources, mics, fs, duration, 343.0)
         freqs, C = compute_global_csm(signals, fs, fft_size=256, overlap=0.5)
         for fi in range(len(freqs)):
@@ -69,7 +82,16 @@ class TestGlobalCSM:
         duration = 0.2
         mics = make_mic_array(4, 1.0, 1.5)
         freq = 1000
-        sources = [{"R": 0.3, "omega": 0.0, "phi0": 0.0, "freq": freq, "amplitude": 1.0, "phase": 0.0}]
+        sources = [
+            {
+                "R": 0.3,
+                "omega": 0.0,
+                "phi0": 0.0,
+                "freq": freq,
+                "amplitude": 1.0,
+                "phase": 0.0,
+            }
+        ]
         _, signals = simulate_signals(sources, mics, fs, duration, 343.0)
         freqs, C = compute_global_csm(signals, fs, fft_size=256, overlap=0.5)
         # C is (N_freq, N_mics, N_mics); pick the frequency slice closest to source freq
@@ -81,19 +103,38 @@ class TestGlobalCSM:
 
 # ── rosi_beamform_freq ────────────────────────────────────────────────────────
 
+
 class TestBeamformFreq:
     def test_freq_mask(self):
         fs = 8000
         duration = 0.2
         mics = make_mic_array(4, 1.0, 1.5)
         grid = make_scan_grid(0.5, 4, 4)
-        sources = [{"R": 0.3, "omega": 0.0, "phi0": 0.0, "freq": 500, "amplitude": 1.0, "phase": 0.0}]
+        sources = [
+            {
+                "R": 0.3,
+                "omega": 0.0,
+                "phi0": 0.0,
+                "freq": 500,
+                "amplitude": 1.0,
+                "phase": 0.0,
+            }
+        ]
         _, signals = simulate_signals(sources, mics, fs, duration, 343.0)
         t = np.arange(len(signals[0])) / fs
         freqs_out, power_map = rosi_beamform_freq(
-            signals, t, mics, grid, 0.0, 343.0,
-            fft_size=128, overlap=0.5, f_min=400, f_max=600,
-            n_jobs=1, verbose=False,
+            signals,
+            t,
+            mics,
+            grid,
+            0.0,
+            343.0,
+            fft_size=128,
+            overlap=0.5,
+            f_min=400,
+            f_max=600,
+            n_jobs=1,
+            verbose=False,
         )
         assert np.all(freqs_out >= 400)
         assert np.all(freqs_out <= 600)
@@ -107,14 +148,32 @@ class TestBeamformFreq:
         mics = make_mic_array(6, 1.0, 1.5)
         omega = 0.0
         freq = 1000
-        sources = [{"R": R_true, "omega": omega, "phi0": phi0_true, "freq": freq, "amplitude": 1.0, "phase": 0.0}]
+        sources = [
+            {
+                "R": R_true,
+                "omega": omega,
+                "phi0": phi0_true,
+                "freq": freq,
+                "amplitude": 1.0,
+                "phase": 0.0,
+            }
+        ]
         _, signals = simulate_signals(sources, mics, fs, duration, 343.0)
         t = np.arange(len(signals[0])) / fs
         grid = make_scan_grid(0.6, 12, 12)
         freqs_out, power_map = rosi_beamform_freq(
-            signals, t, mics, grid, omega, 343.0,
-            fft_size=256, overlap=0.5, f_min=800, f_max=1200,
-            n_jobs=1, verbose=False,
+            signals,
+            t,
+            mics,
+            grid,
+            omega,
+            343.0,
+            fft_size=256,
+            overlap=0.5,
+            f_min=800,
+            f_max=1200,
+            n_jobs=1,
+            verbose=False,
         )
         f_idx = np.argmin(np.abs(freqs_out - freq))
         col = power_map[:, f_idx]
@@ -127,25 +186,53 @@ class TestBeamformFreq:
 
 # ── backend parity ────────────────────────────────────────────────────────────
 
+
 class TestBackendParity:
     def test_numpy_vs_numba(self):
-        numba = pytest.importorskip("numba")
+        pytest.importorskip("numba")
         from rosi.beamform_numba import rosi_beamform_freq_numba
+
         fs = 8000
         duration = 0.15
         mics = make_mic_array(4, 1.0, 1.5)
         grid = make_scan_grid(0.5, 4, 4)
-        sources = [{"R": 0.3, "omega": 0.0, "phi0": 0.0, "freq": 800, "amplitude": 1.0, "phase": 0.0}]
+        sources = [
+            {
+                "R": 0.3,
+                "omega": 0.0,
+                "phi0": 0.0,
+                "freq": 800,
+                "amplitude": 1.0,
+                "phase": 0.0,
+            }
+        ]
         _, signals = simulate_signals(sources, mics, fs, duration, 343.0)
         t = np.arange(len(signals[0])) / fs
         _, p_numpy = rosi_beamform_freq(
-            signals, t, mics, grid, 0.0, 343.0,
-            fft_size=128, overlap=0.5, f_min=600, f_max=1000,
-            n_jobs=1, verbose=False,
+            signals,
+            t,
+            mics,
+            grid,
+            0.0,
+            343.0,
+            fft_size=128,
+            overlap=0.5,
+            f_min=600,
+            f_max=1000,
+            n_jobs=1,
+            verbose=False,
         )
         _, p_numba = rosi_beamform_freq_numba(
-            signals, t, mics, grid, 0.0, 343.0,
-            fft_size=128, overlap=0.5, f_min=600, f_max=1000,
+            signals,
+            t,
+            mics,
+            grid,
+            0.0,
+            343.0,
+            fft_size=128,
+            overlap=0.5,
+            f_min=600,
+            f_max=1000,
             verbose=False,
         )
         np.testing.assert_allclose(p_numpy, p_numba, rtol=1e-5)

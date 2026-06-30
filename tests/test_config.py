@@ -1,16 +1,13 @@
 """Tests for rosi.config — Pydantic models, YAML loading, merge overrides."""
 
-from pathlib import Path
-
-import numpy as np
 import pytest
 import yaml
 from pydantic import ValidationError
 
-from rosi.config import ROSIConfig, load_config_from_yaml, merge_config_with_overrides
-
+from rosi.config import load_config_from_yaml, merge_config_with_overrides
 
 # ── helpers ────────────────────────────────────────────────────────────────────
+
 
 def _valid_yaml(tmp_path, overrides=None):
     """Write a minimal valid config YAML and return its path."""
@@ -26,7 +23,9 @@ def _valid_yaml(tmp_path, overrides=None):
         "f_min": 100.0,
         "f_max": 5000.0,
         "output_image": str(tmp_path / "out.png"),
-        "sources": [{"R": 0.5, "phi0": 0.0, "freq": 3000, "amplitude": 1.0, "phase": 0.0}],
+        "sources": [
+            {"R": 0.5, "phi0": 0.0, "freq": 3000, "amplitude": 1.0, "phase": 0.0}
+        ],
     }
     if overrides:
         data.update(overrides)
@@ -44,6 +43,7 @@ def mic_csv(tmp_path):
 
 
 # ── load_config_from_yaml ─────────────────────────────────────────────────────
+
 
 class TestLoadConfig:
     def test_loads_valid_yaml(self, tmp_path, mic_csv):
@@ -66,6 +66,7 @@ class TestLoadConfig:
 
 # ── fft_size validator ────────────────────────────────────────────────────────
 
+
 class TestFftSize:
     @pytest.mark.parametrize("val", [63, 100, 0, 65])
     def test_rejects_invalid(self, val, tmp_path, mic_csv):
@@ -81,6 +82,7 @@ class TestFftSize:
 
 
 # ── overlap validator ─────────────────────────────────────────────────────────
+
 
 class TestOverlap:
     @pytest.mark.parametrize("val", [-0.1, 1.0, 1.5])
@@ -98,6 +100,7 @@ class TestOverlap:
 
 # ── f_min / f_max ─────────────────────────────────────────────────────────────
 
+
 class TestFreqRange:
     def test_f_max_must_exceed_f_min(self, tmp_path, mic_csv):
         p = _valid_yaml(tmp_path, {"f_min": 5000, "f_max": 1000})
@@ -111,6 +114,7 @@ class TestFreqRange:
 
 
 # ── simulation mode required fields ───────────────────────────────────────────
+
 
 class TestSimMode:
     def test_missing_sample_rate_raises(self, tmp_path, mic_csv):
@@ -126,16 +130,20 @@ class TestSimMode:
 
 # ── wav_file / sources mutual exclusion ───────────────────────────────────────
 
+
 class TestWavFileExclusion:
     def test_wav_file_with_sources_raises(self, tmp_path, mic_csv):
         wav = tmp_path / "test.wav"
-        wav.write_bytes(b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xAC\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00")
+        wav.write_bytes(
+            b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00"
+        )
         p = _valid_yaml(tmp_path, {"wav_file": str(wav)})
         with pytest.raises(ValidationError):
             load_config_from_yaml(p)
 
 
 # ── file existence validators ─────────────────────────────────────────────────
+
 
 class TestFileExistence:
     def test_mic_csv_missing_raises(self, tmp_path):
@@ -150,6 +158,7 @@ class TestFileExistence:
 
 
 # ── merge_config_with_overrides ───────────────────────────────────────────────
+
 
 class TestMergeOverrides:
     def test_nested_scan_grid_key(self, tmp_path, mic_csv):
@@ -169,7 +178,9 @@ class TestMergeOverrides:
 
     def test_wav_input_dict_merge(self, tmp_path, mic_csv):
         wav = tmp_path / "test.wav"
-        wav.write_bytes(b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xAC\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00")
+        wav.write_bytes(
+            b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00"
+        )
         p = _valid_yaml(tmp_path, {"wav_input": {"path": str(wav), "tacho_channel": 2}})
         cfg = load_config_from_yaml(p)
         merged = merge_config_with_overrides(cfg, {"wav_input": {"tacho_channel": 5}})

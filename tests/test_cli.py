@@ -1,15 +1,14 @@
 """Tests for rosi.cli — CLI entry points (in-process, no heavy compute)."""
 
 import sys
-from pathlib import Path
 
 import pytest
 import yaml
 
 from rosi.cli import cmd_generate_array, cmd_run, cmd_validate, main
 
-
 # ── helpers ────────────────────────────────────────────────────────────────────
+
 
 def _make_minimal_config(tmp_path):
     """Write a minimal valid config YAML with a real mics.csv and return its path."""
@@ -27,7 +26,9 @@ def _make_minimal_config(tmp_path):
         "f_min": 100.0,
         "f_max": 5000.0,
         "output_image": str(tmp_path / "out.png"),
-        "sources": [{"R": 0.3, "phi0": 0.0, "freq": 1000, "amplitude": 1.0, "phase": 0.0}],
+        "sources": [
+            {"R": 0.3, "phi0": 0.0, "freq": 1000, "amplitude": 1.0, "phase": 0.0}
+        ],
     }
     p = tmp_path / "config.yaml"
     p.write_text(yaml.safe_dump(cfg))
@@ -36,12 +37,14 @@ def _make_minimal_config(tmp_path):
 
 class _Args:
     """Minimal argparse.Namespace stand-in."""
+
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
 
 # ── cmd_validate ──────────────────────────────────────────────────────────────
+
 
 class TestCmdValidate:
     def test_valid_config_returns_0(self, tmp_path):
@@ -61,6 +64,7 @@ class TestCmdValidate:
 
 
 # ── cmd_run --dry-run ─────────────────────────────────────────────────────────
+
 
 class TestCmdRun:
     def test_dry_run_returns_0(self, tmp_path, capsys):
@@ -93,6 +97,7 @@ class TestCmdRun:
 
 # ── cmd_generate_array ────────────────────────────────────────────────────────
 
+
 class TestCmdGenerateArray:
     def test_writes_csv(self, tmp_path):
         out = tmp_path / "arr.csv"
@@ -111,6 +116,7 @@ class TestCmdGenerateArray:
 
 # ── main() dispatch ───────────────────────────────────────────────────────────
 
+
 class TestMainDispatch:
     def test_validate_subcommand(self, tmp_path):
         cfg = _make_minimal_config(tmp_path)
@@ -126,7 +132,19 @@ class TestMainDispatch:
 
     def test_generate_array_subcommand(self, tmp_path):
         out = tmp_path / "gen.csv"
-        test_argv = ["rosi", "generate-array", "-N", "8", "-R", "2.0", "-Z", "1.0", "-o", str(out), "-f"]
+        test_argv = [
+            "rosi",
+            "generate-array",
+            "-N",
+            "8",
+            "-R",
+            "2.0",
+            "-Z",
+            "1.0",
+            "-o",
+            str(out),
+            "-f",
+        ]
         orig = sys.argv
         try:
             sys.argv = test_argv

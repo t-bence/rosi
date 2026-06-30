@@ -1,7 +1,6 @@
 """Tests for rosi.wav — loading multi-channel WAV files."""
 
 import numpy as np
-import pytest
 from scipy.io import wavfile
 
 from rosi.wav import load_wav_signals
@@ -18,7 +17,9 @@ class TestLoadWavSignals:
         fs = 16000
         n_ch, n_samples = 3, 400
         t_sig = np.arange(n_samples) / fs
-        sigs = 0.5 * np.sin(2 * np.pi * 440 * t_sig[np.newaxis, :] + np.arange(n_ch)[:, np.newaxis])
+        sigs = 0.5 * np.sin(
+            2 * np.pi * 440 * t_sig[np.newaxis, :] + np.arange(n_ch)[:, np.newaxis]
+        )
         path = tmp_path / "test.wav"
         _write_int16_wav(path, fs, sigs)
 

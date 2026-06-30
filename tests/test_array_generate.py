@@ -2,7 +2,6 @@
 
 import csv
 import math
-from pathlib import Path
 
 from rosi.array.generate import generate_cylindrical_csv
 
@@ -31,7 +30,7 @@ class TestGenerateCylindricalCsv:
             next(reader)  # skip header
             for row in reader:
                 x, y = float(row[0]), float(row[1])
-                r = math.sqrt(x ** 2 + y ** 2)
+                r = math.sqrt(x**2 + y**2)
                 assert abs(r - 3.0) < 1e-5
 
     def test_z_constant(self, tmp_path):
