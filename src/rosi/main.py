@@ -19,17 +19,17 @@ from pydantic import ValidationError
 from scipy.interpolate import griddata
 from scipy.io import savemat
 
-from config_schema import ROSIConfig, load_config_from_yaml, merge_config_with_overrides
-from rosi_beamform import compute_global_csm, make_scan_grid, power_map_to_grid
-from rosi_sim import simulate_signals
-from rosi_wav import load_wav_signals
+from rosi.config import ROSIConfig, load_config_from_yaml, merge_config_with_overrides
+from rosi.beamform import compute_global_csm, make_scan_grid, power_map_to_grid
+from rosi.sim import simulate_signals
+from rosi.wav import load_wav_signals
 
 try:
-    from rosi_beamform_numba import rosi_beamform_freq_numba as beamform
+    from rosi.beamform_numba import rosi_beamform_freq_numba as beamform
 
     _BACKEND = "Numba JIT (fast)"
 except ImportError:
-    from rosi_beamform import rosi_beamform_freq as beamform
+    from rosi.beamform import rosi_beamform_freq as beamform
 
     _BACKEND = "numpy + joblib (install numba for ~7× speedup)"
 
@@ -157,7 +157,7 @@ def main_with_args(args):
     # ── WAV input or simulation ────────────────────────────────────────────────
 
     if config.wav_input is not None:
-        from rpm_from_wav import load_signals_from_wav
+        from rosi.rpm import load_signals_from_wav
 
         rpm, FS, t, signals = load_signals_from_wav(
             config.wav_input.path,

@@ -9,7 +9,7 @@ from pathlib import Path
 
 def cmd_generate_array(args):
     """Handler for 'rosi generate-array' subcommand."""
-    from utils.generate_array import generate_cylindrical_csv
+    from rosi.array.generate import generate_cylindrical_csv
     
     output_path = Path(args.output)
     
@@ -26,7 +26,7 @@ def cmd_generate_array(args):
 
 def cmd_validate(args):
     """Handler for 'rosi validate' subcommand."""
-    from config_schema import load_config_from_yaml
+    from rosi.config import load_config_from_yaml
     from pydantic import ValidationError
     
     config_path = args.config
@@ -65,7 +65,7 @@ def cmd_run(args):
     """Handler for 'rosi run' subcommand."""
     # Import main() function and set up sys.argv to pass parsed args
     # We'll call main() directly with the args object
-    from main import main_with_args
+    from rosi.main import main_with_args
     
     return main_with_args(args)
 
