@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from config_schema import load_config_from_yaml, merge_config_with_overrides, ROSIConfig
 from rosi_sim import simulate_signals
 from rosi_wav import load_wav_signals
+from rosi_tach import extract_rpm_from_tach, rotor_phase_from_tach
 from rosi_beamform import make_scan_grid, compute_global_csm, power_map_to_grid
 
 try:
@@ -45,7 +46,7 @@ def load_mic_positions(csv_path: str | Path) -> np.ndarray:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            parts = line.split(",")
+            parts = line.replace(",", " ").split()
             try:
                 rows.append([float(p) for p in parts])
             except ValueError:
@@ -73,6 +74,9 @@ def load_and_validate_config(config_path: str, cli_args) -> ROSIConfig:
         "speed_of_sound": cli_args.speed_of_sound,
         "rpm": cli_args.rpm,
         "mic_positions_csv": cli_args.mic_positions_csv,
+        "array_distance": cli_args.array_distance,
+        "tach_channel": cli_args.tach_channel,
+        "rotation_direction": cli_args.rotation_direction,
         "r_max": cli_args.r_max,
         "n_r": cli_args.n_r,
         "n_theta": cli_args.n_theta,
@@ -124,11 +128,14 @@ def main_with_args(args):
 
     # Extract config values
     C = float(config.speed_of_sound)
-    OMEGA = 2 * np.pi * float(config.rpm) / 60
+    ROT_DIR = int(config.rotation_direction)
+    OMEGA = ROT_DIR * 2 * np.pi * float(config.rpm) / 60 if config.rpm is not None else None
 
     mic_csv = Path(config.mic_positions_csv)
     mic_positions = load_mic_positions(mic_csv)
-    print(f"Loaded {len(mic_positions)} mic positions from {mic_csv}")
+    mic_positions[:, 2] += float(config.array_distance)
+    print(f"Loaded {len(mic_positions)} mic positions from {mic_csv} "
+          f"(array_distance={config.array_distance:.3f} m)")
 
     SCAN_R_MAX = float(config.scan_grid.r_max)
     N_SCAN_R = int(config.scan_grid.n_r)
@@ -157,13 +164,31 @@ def main_with_args(args):
     if config.wav_file:
         print(f"Loading signals from WAV: {config.wav_file}")
         FS, t, signals = load_wav_signals(config.wav_file)
-        T_TOTAL = float(t[-1])
         n_wav_ch = signals.shape[0]
         n_mics = len(mic_positions)
         if n_wav_ch != n_mics:
-            print(f"ERROR: WAV has {n_wav_ch} channels but mic array has {n_mics} positions")
+            print(f"ERROR: WAV has {n_wav_ch} channels but mic array has {n_mics} positions "
+                  f"(mic_positions_csv rows must correspond 1:1 to WAV channels, including "
+                  f"a placeholder row for tach_channel if set)")
             return 1
-        print(f"  {n_wav_ch} channels, {FS} Hz, {T_TOTAL:.2f} s")
+
+        pulse_times = None
+        if config.tach_channel is not None:
+            rpm_measured, pulse_times = extract_rpm_from_tach(signals[config.tach_channel], FS)
+            rpm_per_rev = 60.0 / np.diff(pulse_times)
+            print(f"  Tach channel {config.tach_channel}: {len(pulse_times)} pulses, "
+                  f"RPM mean={rpm_measured:.2f} min={rpm_per_rev.min():.2f} "
+                  f"max={rpm_per_rev.max():.2f} (1 pulse/rev, per-revolution omega used)")
+            signals = np.delete(signals, config.tach_channel, axis=0)
+            mic_positions = np.delete(mic_positions, config.tach_channel, axis=0)
+
+        if config.duration is not None:
+            n_samples = min(len(t), int(round(float(config.duration) * FS)))
+            t, signals = t[:n_samples], signals[:, :n_samples]
+        T_TOTAL = float(t[-1])
+        print(f"  {signals.shape[0]} mic channels, {FS} Hz, {T_TOTAL:.2f} s")
+
+        THETA = ROT_DIR * rotor_phase_from_tach(pulse_times, t) if pulse_times is not None else OMEGA * t
     else:
         FS = int(config.sample_rate)
         T_TOTAL = float(config.duration)
@@ -172,6 +197,7 @@ def main_with_args(args):
         t0 = time.time()
         t, signals = simulate_signals(SOURCES, mic_positions, FS, T_TOTAL, C)
         print(f"  Done in {time.time()-t0:.2f} s")
+        THETA = OMEGA * t
 
     # ── Global CSM (informational only) ────────────────────────────────────
 
@@ -184,7 +210,7 @@ def main_with_args(args):
     print(f"Running ROSI beamformer on {len(scan_grid)} scan points [{_BACKEND}]...")
     t0 = time.time()
     freqs_out, power_map = beamform(
-        signals, t, mic_positions, scan_grid, OMEGA, C,
+        signals, t, mic_positions, scan_grid, THETA, C,
         fft_size=FFT_SIZE, overlap=OVERLAP, f_min=F_MIN, f_max=F_MAX,
     )
     elapsed = time.time() - t0
@@ -309,6 +335,9 @@ def main():
     parser.add_argument("--speed-of-sound", type=float)
     parser.add_argument("--rpm", type=float)
     parser.add_argument("--mic-positions-csv", type=str)
+    parser.add_argument("--array-distance", type=float)
+    parser.add_argument("--tach-channel", type=int)
+    parser.add_argument("--rotation-direction", type=int, choices=[1, -1])
     parser.add_argument("--r-max", type=float)
     parser.add_argument("--n-r", type=int)
     parser.add_argument("--n-theta", type=int)

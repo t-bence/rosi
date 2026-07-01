@@ -32,10 +32,31 @@ class ROSIConfig(BaseModel):
     sample_rate: int | None = Field(default=None, gt=0, description="Sample rate [Hz]")
     duration: float | None = Field(default=None, gt=0, description="Signal duration [seconds]")
     speed_of_sound: float = Field(gt=0, description="Speed of sound [m/s]")
-    rpm: float = Field(ge=0, description="Rotor speed [rev/min]")
+    rpm: float | None = Field(
+        default=None, ge=0,
+        description="Rotor speed [rev/min]. Required unless tach_channel is set "
+                     "(measurement mode), in which case it is derived from the tach signal.",
+    )
+    rotation_direction: int = Field(
+        default=1,
+        description="Sign of the rotor's angular velocity: +1 = counter-clockwise "
+                     "(increasing theta, viewed from +z), -1 = clockwise.",
+    )
+
+    @field_validator("rotation_direction")
+    @classmethod
+    def rotation_direction_must_be_sign(cls, v: int) -> int:
+        if v not in (1, -1):
+            raise ValueError("rotation_direction must be 1 (CCW) or -1 (CW)")
+        return v
 
     # Microphone array
     mic_positions_csv: str = Field(description="Path to microphone positions CSV")
+    array_distance: float = Field(
+        default=0.0, ge=0,
+        description="Distance from the mic array plane to the target/rotor plane [m], "
+                     "added to each mic's z-coordinate",
+    )
 
     # Scan grid
     scan_grid: ScanGridConfig = Field(description="Scan grid configuration")
@@ -53,6 +74,13 @@ class ROSIConfig(BaseModel):
 
     # Measurement mode: multi-channel WAV file replaces simulation
     wav_file: str | None = Field(default=None, description="Path to multi-channel WAV file")
+    tach_channel: int | None = Field(
+        default=None, ge=0,
+        description="0-based index of a tachometer pulse channel within wav_file. "
+                     "That channel is excluded from the mic signals (and the matching "
+                     "row is dropped from mic_positions_csv), and rpm is derived from "
+                     "its pulse train instead of the rpm field.",
+    )
 
     # Sources — required for simulation mode, unused in measurement mode
     sources: list[SourceConfig] = Field(
@@ -100,6 +128,11 @@ class ROSIConfig(BaseModel):
                 raise ValueError("duration is required in simulation mode (no wav_file)")
             if not self.sources:
                 raise ValueError("At least one source is required in simulation mode (no wav_file)")
+            if self.tach_channel is not None:
+                raise ValueError("tach_channel requires wav_file (measurement mode)")
+
+        if self.rpm is None and self.tach_channel is None:
+            raise ValueError("rpm is required unless tach_channel is set")
         return self
 
     @field_validator("mic_positions_csv", mode="before")

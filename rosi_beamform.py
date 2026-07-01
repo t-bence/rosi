@@ -66,9 +66,9 @@ def _beamform_one(
     scan_grid: np.ndarray,
     signals: np.ndarray,
     t_emit: np.ndarray,
+    theta_emit: np.ndarray,
     t_sig: np.ndarray,
     mic_positions: np.ndarray,
-    omega: float,
     c: float,
     fft_size: int,
     win: np.ndarray,
@@ -79,7 +79,7 @@ def _beamform_one(
     scan_r, scan_theta = scan_grid[k]
     n_emit = len(t_emit)
 
-    theta_s = omega * t_emit + scan_theta
+    theta_s = theta_emit + scan_theta
     ys = np.empty((n_emit, 3))
     ys[:, 0] = scan_r * np.cos(theta_s)
     ys[:, 1] = scan_r * np.sin(theta_s)
@@ -109,7 +109,7 @@ def rosi_beamform_freq(
     t_sig: np.ndarray,
     mic_positions: np.ndarray,
     scan_grid: np.ndarray,
-    omega: float,
+    theta: np.ndarray,
     c: float,
     fft_size: int = 512,
     overlap: float = 0.5,
@@ -125,7 +125,8 @@ def rosi_beamform_freq(
     t_sig         : (N_samples,)        time axis matching signals
     mic_positions : (N_mics, 3)
     scan_grid     : (N_scan, 2)         (r, theta_offset) in rotating frame
-    omega         : rotation angular velocity [rad/s]
+    theta         : (N_samples,)        unwrapped rotor phase [rad] at each t_sig sample
+                                         (per-revolution, not a single average omega)
     c             : speed of sound [m/s]
     fft_size      : Welch block length applied to the de-rotated DAS series
     overlap       : Welch overlap fraction
@@ -139,7 +140,9 @@ def rosi_beamform_freq(
     """
     # Trim emission times so all arrival times stay inside the signal window
     max_dist = np.max(np.linalg.norm(mic_positions, axis=1)) + np.max(scan_grid[:, 0])
-    t_emit = t_sig[t_sig < (t_sig[-1] - max_dist / c)]
+    emit_mask = t_sig < (t_sig[-1] - max_dist / c)
+    t_emit = t_sig[emit_mask]
+    theta_emit = theta[emit_mask]
     n_emit = len(t_emit)
 
     # Welch setup
@@ -161,8 +164,8 @@ def rosi_beamform_freq(
     # Use tqdm to wrap the generator for progress bar
     jobs_gen = (
         delayed(_beamform_one)(
-            k, scan_grid, signals, t_emit, t_sig,
-            mic_positions, omega, c,
+            k, scan_grid, signals, t_emit, theta_emit, t_sig,
+            mic_positions, c,
             fft_size, win, block_starts, freq_mask,
         )
         for k in range(n_scan)

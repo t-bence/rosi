@@ -145,6 +145,10 @@ def main():
     run.add_argument("--speed-of-sound", type=float, help="Override speed_of_sound")
     run.add_argument("--rpm", type=float, help="Override rpm")
     run.add_argument("--mic-positions-csv", type=str, help="Override mic_positions_csv")
+    run.add_argument("--array-distance", type=float, help="Override array_distance")
+    run.add_argument("--tach-channel", type=int, help="Override tach_channel")
+    run.add_argument("--rotation-direction", type=int, choices=[1, -1],
+                      help="Override rotation_direction (1=CCW, -1=CW)")
     run.add_argument("--r-max", type=float, help="Override scan_grid.r_max")
     run.add_argument("--n-r", type=int, help="Override scan_grid.n_r")
     run.add_argument("--n-theta", type=int, help="Override scan_grid.n_theta")

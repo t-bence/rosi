@@ -96,7 +96,7 @@ def rosi_beamform_freq_numba(
     t_sig: np.ndarray,
     mic_positions: np.ndarray,
     scan_grid: np.ndarray,
-    omega: float,
+    theta: np.ndarray,
     c: float,
     fft_size: int = 512,
     overlap: float = 0.5,
@@ -108,20 +108,25 @@ def rosi_beamform_freq_numba(
     """
     Numba-JIT ROSI frequency-domain beamformer.
 
+    theta : (N_samples,) unwrapped rotor phase [rad] at each t_sig sample
+            (per-revolution, not a single average omega).
+
     Same interface as rosi_beamform_freq().  Processes scan_grid in chunks of
     `chunk_size` to keep the DAS buffer under (chunk_size × N_emit × 8) bytes.
 
     The JIT kernel is compiled on first call (~1–2 s, cached to disk for reuse).
     """
     max_dist = np.max(np.linalg.norm(mic_positions, axis=1)) + np.max(scan_grid[:, 0])
-    t_emit   = t_sig[t_sig < t_sig[-1] - max_dist / c]
+    emit_mask = t_sig < t_sig[-1] - max_dist / c
+    t_emit   = t_sig[emit_mask]
+    theta_emit = theta[emit_mask]
     n_emit   = len(t_emit)
     dt       = float(t_sig[1] - t_sig[0])
     t_sig_0  = float(t_sig[0])
 
     # ── Precompute trig for all emission times (used by every scan point) ────
-    cos_ot = np.ascontiguousarray(np.cos(omega * t_emit), dtype=np.float64)
-    sin_ot = np.ascontiguousarray(np.sin(omega * t_emit), dtype=np.float64)
+    cos_ot = np.ascontiguousarray(np.cos(theta_emit), dtype=np.float64)
+    sin_ot = np.ascontiguousarray(np.sin(theta_emit), dtype=np.float64)
 
     # ── Precompute per-mic constant: ‖mic_pos[m]‖² ──────────────────────────
     mic_x  = mic_positions[:, 0].astype(np.float64)

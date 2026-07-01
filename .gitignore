@@ -19,3 +19,6 @@ data/output/*.mat
 
 # checks, trials with existing data
 check/
+check_output/
+.DS_Store
+
