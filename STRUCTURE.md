@@ -8,16 +8,22 @@ The ROSI project is organized with **code** and **data** cleanly separated.
 
 ```
 rosi/
-├── Code (Python modules)
+├── Code (Python package, under src/rosi/)
 │   ├── rosi                    # CLI entry point script
-│   ├── config_schema.py        # Pydantic config models
-│   ├── main.py                 # Main entry point
-│   ├── rosi_cli.py             # CLI command handlers
-│   ├── rosi_sim.py             # Signal simulation
-│   ├── rosi_beamform.py        # Beamformer (numpy)
-│   ├── rosi_beamform_numba.py  # Beamformer (numba JIT)
-│   └── utils/
-│       └── generate_array.py   # Array generator utility
+│   ├── pyproject.toml          # Project dependencies + build config
+│   └── src/rosi/
+│       ├── __init__.py
+│       ├── cli.py              # CLI command handlers
+│       ├── main.py             # Main entry point
+│       ├── config.py           # Pydantic config models
+│       ├── sim.py              # Signal simulation
+│       ├── beamform.py         # Beamformer (numpy)
+│       ├── beamform_numba.py   # Beamformer (numba JIT)
+│       ├── wav.py              # WAV signal loading
+│       ├── rpm.py              # RPM extraction from tachometer
+│       └── array/
+│           ├── __init__.py
+│           └── generate.py     # Array generator utility
 │
 ├── Data
 │   ├── input/
@@ -27,8 +33,9 @@ rosi/
 │   └── output/
 │       └── rosi_result.png     # Generated beamforming results
 │
+├── tests/                      # Reserved for automated tests
+│
 ├── Config
-│   ├── pyproject.toml          # Project dependencies
 │   ├── .gitignore              # Git ignore rules
 │   └── README.md               # Documentation
 │

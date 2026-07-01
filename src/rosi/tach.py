@@ -1,4 +1,4 @@
-"""rosi_tach.py — Derive rotor RPM from a tachometer pulse-train channel."""
+"""tach.py — Derive rotor RPM from a tachometer pulse-train channel."""
 
 import numpy as np
 

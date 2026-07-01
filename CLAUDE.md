@@ -17,23 +17,25 @@ Run all commands via the `./rosi` wrapper (uses `uv` to manage Python env automa
 To run a Python file directly (bypassing the CLI):
 
 ```bash
-uv run python main.py
-uv run python -c "from config_schema import load_config_from_yaml; ..."
+uv run python -m rosi.main
+uv run python -c "from rosi.config import load_config_from_yaml; ..."
 ```
 
 There are no automated tests; validate by running `./rosi validate` then `./rosi run --dry-run`.
 
 ## Architecture
 
-The pipeline has three stages, each in its own module:
+The pipeline has three stages, each in its own module under `src/rosi/`:
 
-1. **`rosi_sim.py`** — simulates rotating point sources, computes Doppler-shifted arrival times at each microphone, and returns time-domain pressure signals (numpy arrays).
+1. **`sim.py`** — simulates rotating point sources, computes Doppler-shifted arrival times at each microphone, and returns time-domain pressure signals (numpy arrays).
 
-2. **`rosi_beamform.py` / `rosi_beamform_numba.py`** — delay-and-sum beamformer operating in the co-rotating frame. `main.py` auto-selects the Numba variant if available (~7× faster); both expose the same public API. The key operation: for each scan point, interpolate mic signals at their Doppler-corrected timestamps, sum across mics, then Welch-average the FFT to get power vs. frequency.
+2. **`beamform.py` / `beamform_numba.py`** — delay-and-sum beamformer operating in the co-rotating frame. `main.py` auto-selects the Numba variant if available (~7× faster); both expose the same public API. The key operation: for each scan point, interpolate mic signals at their Doppler-corrected timestamps, sum across mics, then Welch-average the FFT to get power vs. frequency.
 
 3. **`main.py`** (`main_with_args`) — orchestrates the two stages, generates the 3-panel result figure (raw CSM / ROSI map / DAS spectrum), and saves to PNG.
 
-**Config layer:** `config_schema.py` defines Pydantic models (`ROSIConfig`, `ScanGridConfig`, `SourceConfig`). Config is loaded from YAML, validated, and CLI overrides are merged before any computation. The CLI (`rosi_cli.py`) handles argument parsing and dispatches to handlers that call `main_with_args`.
+**Config layer:** `config.py` defines Pydantic models (`ROSIConfig`, `ScanGridConfig`, `SourceConfig`). Config is loaded from YAML, validated, and CLI overrides are merged before any computation. The CLI (`cli.py`) handles argument parsing and dispatches to handlers that call `main_with_args`.
+
+**Package layout:** source lives under `src/rosi/` (installed as the `rosi` package via hatchling); `rosi/array/generate.py` holds the array-generator utility; `tests/` is reserved for future automated tests.
 
 **Data layout:**
 - `data/input/config.yaml` — all simulation/beamforming parameters (edit to customize)

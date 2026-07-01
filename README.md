@@ -184,13 +184,17 @@ It seems that 1 s of signal takes around 80 s, 10 s of signal takes 800 s to sim
 rosi/                           — Project root
 ├── Code
 │   ├── rosi                    — CLI entry point (run commands via this script)
-│   ├── config_schema.py        — Pydantic config validation models
-│   ├── main.py                 — Entry point and plots
-│   ├── rosi_cli.py             — CLI command definitions
-│   ├── rosi_sim.py             — Simulate rotating sources → mic signals
-│   ├── rosi_beamform.py        — Frequency-domain ROSI beamformer (numpy + joblib)
-│   ├── rosi_beamform_numba.py  — Same algorithm, Numba JIT (faster)
-│   └── utils/generate_array.py — Generate circular microphone arrays
+│   ├── pyproject.toml          — Dependencies, build config, entry point
+│   └── src/rosi/
+│       ├── cli.py              — CLI command definitions
+│       ├── main.py             — Entry point and plots
+│       ├── config.py           — Pydantic config validation models
+│       ├── sim.py              — Simulate rotating sources → mic signals
+│       ├── beamform.py         — Frequency-domain ROSI beamformer (numpy + joblib)
+│       ├── beamform_numba.py   — Same algorithm, Numba JIT (faster)
+│       ├── wav.py              — WAV signal loading
+│       ├── rpm.py              — RPM extraction from tachometer WAV
+│       └── array/generate.py   — Generate circular microphone arrays
 │
 └── Data
     ├── data/input/

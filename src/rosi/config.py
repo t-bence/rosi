@@ -1,5 +1,5 @@
 """
-config_schema.py — Pydantic models for ROSI configuration validation.
+config.py — Pydantic models for ROSI configuration validation.
 """
 
 from pathlib import Path
