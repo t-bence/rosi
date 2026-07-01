@@ -17,3 +17,5 @@ data/output/*.mat
 # Numba cache
 *.nbc
 
+# checks, trials with existing data
+check/
